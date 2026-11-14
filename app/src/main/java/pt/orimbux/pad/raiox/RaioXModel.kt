@@ -29,6 +29,8 @@ data class PadSnapshot(
     val firmware: Int = 0,
     val vendor: Int = 0,
     val product: Int = 0,
+    /** true = aberto pelo SDL por USB direto (HIDAPI); false = caminho do Android, sem luzes/gatilhos */
+    val hidapi: Boolean = false,
     val axes: FloatArray = FloatArray(6),
     val gyro: FloatArray = FloatArray(3),
     val accel: FloatArray = FloatArray(3),
@@ -117,6 +119,7 @@ class RaioXModel(private val context: Context) {
             firmware = ints[10],
             vendor = ints[11],
             product = ints[12],
+            hidapi = ints[13] == 1,
             axes = floats.copyOfRange(0, 6),
             gyro = floats.copyOfRange(6, 9),
             accel = floats.copyOfRange(9, 12),
@@ -132,8 +135,9 @@ class RaioXModel(private val context: Context) {
         if (s.sdlReady == -1 && get("sdl").status != Status.OK) {
             set("sdl", Status.FAIL, NativeBridge.controllerError())
         }
-        if (!s.connected) return
-        autoOk("sdl", "SDL3 · comando %04x:%04x · firmware 0x%04x".format(s.vendor, s.product, s.firmware))
+        // Só se testa com o comando aberto por HIDAPI (o caminho do Android é só transitório).
+        if (!s.connected || !s.hidapi) return
+        autoOk("sdl", "SDL3 HIDAPI · comando %04x:%04x · firmware 0x%04x".format(s.vendor, s.product, s.firmware))
 
         val map = mapOf(
             PadSnapshot.CROSS to "btn_cross", PadSnapshot.CIRCLE to "btn_circle",

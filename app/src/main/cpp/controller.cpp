@@ -260,27 +260,52 @@ void Controller::tickRhythmicTrigger(int64_t nowNs) {
 // Thread do SDL
 // ---------------------------------------------------------------------------
 
+// O comando é "HIDAPI" quando o SDL o abre diretamente por USB (caminho que dá
+// luzes, gatilhos, touchpad e sensores). Nesse caso o caminho é /dev/bus/usb/...
+static bool isHidapiGamepad(SDL_JoystickID id) {
+    const char* path = SDL_GetGamepadPathForID(id);
+    return path && std::strncmp(path, "/dev/bus/usb", 12) == 0;
+}
+
+// Abre o comando. Ao ligar o cabo, o Android expõe-o primeiro pelo caminho dele
+// (sem luzes nem gatilhos) até o SDL ter a permissão USB; quando o comando HIDAPI
+// aparece, troca-se para ele. Só as ligações HIDAPI contam para o teste de religação.
 void Controller::openFirstGamepad() {
-    if (gamepad_) return;
     int count = 0;
     SDL_JoystickID* ids = SDL_GetGamepads(&count);
     if (!ids) return;
-    for (int i = 0; i < count && !gamepad_; ++i) {
-        SDL_Gamepad* g = SDL_OpenGamepad(ids[i]);
-        if (!g) continue;
-        gamepad_ = g;
-        gamepadId_ = ids[i];
-        SDL_SetGamepadSensorEnabled(g, SDL_SENSOR_GYRO, true);
-        SDL_SetGamepadSensorEnabled(g, SDL_SENSOR_ACCEL, true);
-        LOGI("Comando aberto: %s (%04x:%04x) fw=%u", SDL_GetGamepadName(g), SDL_GetGamepadVendor(g),
-             SDL_GetGamepadProduct(g), SDL_GetGamepadFirmwareVersion(g));
-        std::lock_guard<std::mutex> lock(stateMutex_);
-        state_.addedCount += 1;
-        state_.firmware = SDL_GetGamepadFirmwareVersion(g);
-        state_.vendor = SDL_GetGamepadVendor(g);
-        state_.product = SDL_GetGamepadProduct(g);
+    SDL_JoystickID best = 0;
+    bool bestHidapi = false;
+    for (int i = 0; i < count; ++i) {
+        const bool h = isHidapiGamepad(ids[i]);
+        if (best == 0 || (h && !bestHidapi)) {
+            best = ids[i];
+            bestHidapi = h;
+        }
     }
     SDL_free(ids);
+    if (best == 0) return;
+    if (gamepad_ && (gamepadIsHidapi_ || !bestHidapi)) return;  // já temos o melhor possível
+
+    if (gamepad_) {  // troca do caminho do Android para o HIDAPI (não conta como desligar)
+        SDL_CloseGamepad(gp(gamepad_));
+        gamepad_ = nullptr;
+    }
+    SDL_Gamepad* g = SDL_OpenGamepad(best);
+    if (!g) return;
+    gamepad_ = g;
+    gamepadId_ = best;
+    gamepadIsHidapi_ = bestHidapi;
+    SDL_SetGamepadSensorEnabled(g, SDL_SENSOR_GYRO, true);
+    SDL_SetGamepadSensorEnabled(g, SDL_SENSOR_ACCEL, true);
+    LOGI("Comando aberto: %s (%04x:%04x) fw=%u hidapi=%d", SDL_GetGamepadName(g), SDL_GetGamepadVendor(g),
+         SDL_GetGamepadProduct(g), SDL_GetGamepadFirmwareVersion(g), bestHidapi ? 1 : 0);
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    if (bestHidapi) state_.addedCount += 1;
+    state_.hidapi = bestHidapi ? 1 : 0;
+    state_.firmware = SDL_GetGamepadFirmwareVersion(g);
+    state_.vendor = SDL_GetGamepadVendor(g);
+    state_.product = SDL_GetGamepadProduct(g);
 }
 
 void Controller::updateSnapshot() {
@@ -333,6 +358,7 @@ void Controller::updateSnapshot() {
     s.vendor = state_.vendor;
     s.product = state_.product;
     s.sdlReady = state_.sdlReady;
+    s.hidapi = state_.hidapi;
     state_ = s;
 }
 
@@ -373,9 +399,14 @@ void Controller::threadMain() {
                         gamepad_ = nullptr;
                         gamepadId_ = 0;
                         rhythmicR2_ = false;
-                        LOGI("Comando desligado");
-                        std::lock_guard<std::mutex> lock(stateMutex_);
-                        state_.removedCount += 1;
+                        LOGI("Comando desligado (hidapi=%d)", gamepadIsHidapi_ ? 1 : 0);
+                        {
+                            std::lock_guard<std::mutex> lock(stateMutex_);
+                            if (gamepadIsHidapi_) state_.removedCount += 1;
+                            state_.hidapi = 0;
+                        }
+                        gamepadIsHidapi_ = false;
+                        openFirstGamepad();  // pode haver outro caminho para o mesmo comando
                     }
                     break;
                 case SDL_EVENT_GAMEPAD_BUTTON_DOWN: {

@@ -60,6 +60,8 @@ object RaioXTests {
         TestDef("r2_off", Section.OUTPUTS, "R2: off (volta a ficar livre)"),
 
         // ---- Áudio ----
+        TestDef("usb_audio_out", Section.AUDIO, "O Android regista a saída de áudio USB do comando", auto = true),
+        TestDef("usb_audio_in", Section.AUDIO, "O Android regista o microfone USB do comando", auto = true),
         TestDef("haptic_audio", Section.AUDIO, "Háptica por áudio (canais 3–4)"),
         TestDef("ctrl_jack", Section.AUDIO, "Som no jack do comando (canais 1–2)"),
         TestDef("ctrl_speaker", Section.AUDIO, "Som no altifalante do comando"),

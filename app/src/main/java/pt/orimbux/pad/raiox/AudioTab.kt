@@ -36,11 +36,21 @@ fun AudioTab(model: RaioXModel, lab: AudioLab) {
                 MonoText("Altifalantes: ${lab.speakerInfo}")
                 MonoText("Saída do comando: ${lab.ctrlOutInfo}")
                 MonoText("Microfone do comando: ${lab.ctrlInInfo}")
-                Text(
-                    if (lab.ctrlSupportsFour) "O Android declara 4 canais para o comando ✔" else "O Android NÃO declara 4 canais para o comando",
-                    fontSize = 12.sp,
-                    color = if (lab.ctrlSupportsFour) OrimbuxColors.Ok else OrimbuxColors.Fail,
-                )
+                if (!lab.ctrlOutFound) {
+                    Text(
+                        "O Android deste telemóvel não regista a saída de áudio do comando (só o microfone). " +
+                            "Por este caminho, a háptica por áudio, o jack e o cenário B não podem funcionar. " +
+                            "A alternativa é o plano B (áudio USB direto, sem passar pelo Android).",
+                        fontSize = 12.sp,
+                        color = OrimbuxColors.Fail,
+                    )
+                } else {
+                    Text(
+                        if (lab.ctrlSupportsFour) "O Android declara 4 canais para o comando ✔" else "O Android NÃO declara 4 canais para o comando",
+                        fontSize = 12.sp,
+                        color = if (lab.ctrlSupportsFour) OrimbuxColors.Ok else OrimbuxColors.Fail,
+                    )
+                }
                 SmallButton("Atualizar") { lab.refreshDevices() }
             }
             Card("Método do stream de 4 canais para o comando") {

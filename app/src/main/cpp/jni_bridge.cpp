@@ -35,7 +35,7 @@ JNIEXPORT void JNICALL JNI_FN(controllerState)(JNIEnv* env, jclass, jintArray in
     jint iv[16] = {
         s.connected, static_cast<jint>(s.buttons), s.batteryPercent, s.powerState,
         s.touchDown[0], s.touchDown[1], s.addedCount, s.removedCount,
-        s.sdlReady, s.lastEffectOk, s.firmware, s.vendor, s.product, 0, 0, 0,
+        s.sdlReady, s.lastEffectOk, s.firmware, s.vendor, s.product, s.hidapi, 0, 0,
     };
     jfloat fv[24] = {
         s.axes[0], s.axes[1], s.axes[2], s.axes[3], s.axes[4], s.axes[5],

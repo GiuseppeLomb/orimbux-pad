@@ -65,6 +65,11 @@ class AudioLab(private val ctx: Context) {
         private set
     var ctrlSupportsFour by mutableStateOf(false)
         private set
+    var ctrlOutFound by mutableStateOf(false)
+        private set
+    var ctrlInFound by mutableStateOf(false)
+        private set
+    private var pollCount = 0
     var micBusy by mutableStateOf(false)
         private set
     var micResult by mutableStateOf<MicTest.Result?>(null)
@@ -81,6 +86,8 @@ class AudioLab(private val ctx: Context) {
         ctrlOutInfo = AudioDevices.describe(out)
         ctrlInInfo = AudioDevices.describe(inp)
         ctrlSupportsFour = AudioDevices.supportsFourChannels(out)
+        ctrlOutFound = out != null
+        ctrlInFound = inp != null
     }
 
     /** Abre o stream do comando com o método escolhido. */
@@ -176,6 +183,7 @@ class AudioLab(private val ctx: Context) {
     }
 
     fun pollNow() {
+        if (pollCount++ % 5 == 0) refreshDevices()  // ~1 vez por segundo: o comando pode ligar/desligar
         phoneStatus = NativeBridge.audioStatus(NativeBridge.PATH_PHONE)
         ctrlStatus = NativeBridge.audioStatus(NativeBridge.PATH_CTRL)
         phoneLatency = readStats(NativeBridge.PATH_PHONE)

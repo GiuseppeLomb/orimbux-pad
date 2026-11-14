@@ -51,7 +51,21 @@ fun RaioXScreen(model: RaioXModel, lab: AudioLab) {
         while (isActive) {
             withFrameNanos { }
             model.poll()
-            if (frame++ % 12 == 0) lab.pollNow()
+            if (frame++ % 12 == 0) {
+                lab.pollNow()
+                // Com o comando aberto há uns segundos, regista se o Android vê o áudio USB dele.
+                if (model.pad.hidapi && frame > 300) {
+                    model.set(
+                        "usb_audio_out", if (lab.ctrlOutFound) Status.OK else Status.FAIL,
+                        if (lab.ctrlOutFound) lab.ctrlOutInfo
+                        else "o Android só regista o microfone (UsbAlsaManager: hasOutput=false) — som e háptica pelo Android impossíveis",
+                    )
+                    model.set(
+                        "usb_audio_in", if (lab.ctrlInFound) Status.OK else Status.FAIL,
+                        if (lab.ctrlInFound) lab.ctrlInInfo else "não encontrado",
+                    )
+                }
+            }
         }
     }
 
@@ -84,6 +98,7 @@ private fun TopBar(model: RaioXModel) {
         Text("Orimbux Pad · Raio-X", fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
         val (label, color) = when {
             pad.sdlReady == -1 -> "SDL falhou" to OrimbuxColors.Fail
+            pad.connected && !pad.hidapi -> "Comando visto pelo Android — à espera da permissão USB" to OrimbuxColors.Fail
             pad.connected -> "Comando ligado" + (if (pad.battery >= 0) " · ${pad.battery} %" else "") to OrimbuxColors.Ok
             else -> "Comando desligado — liga o cabo USB-C" to OrimbuxColors.Fail
         }

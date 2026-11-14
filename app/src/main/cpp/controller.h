@@ -59,6 +59,7 @@ struct ControllerState {
     int firmware = 0;
     int vendor = 0;
     int product = 0;
+    int hidapi = 0;          // 1 = aberto pelo SDL por USB direto (luzes/gatilhos disponíveis)
 };
 
 // Chamado na thread do SDL quando um botão de pad é carregado.
@@ -114,6 +115,7 @@ private:
 
     void* gamepad_ = nullptr;  // SDL_Gamepad*
     uint32_t gamepadId_ = 0;   // SDL_JoystickID
+    bool gamepadIsHidapi_ = false;
 
     // Medição da taxa de reports (eventos do giroscópio por segundo).
     int sensorEvents_ = 0;
