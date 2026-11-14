@@ -10,7 +10,8 @@ import java.io.File
 import kotlin.math.abs
 import kotlin.math.sqrt
 
-enum class Status(val symbol: String) { PENDING("⏳"), OK("✅"), FAIL("❌") }
+/** SKIPPED = "não testado" de propósito (ex.: sem hub PD) — não conta como falha. */
+enum class Status(val symbol: String) { PENDING("⏳"), OK("✅"), FAIL("❌"), SKIPPED("➖") }
 
 data class TestResult(val status: Status = Status.PENDING, val detail: String = "")
 
@@ -68,6 +69,14 @@ class RaioXModel(private val context: Context) {
 
     init {
         load()
+        markHubScenariosNotTested()
+    }
+
+    /** Sem hub USB-C PD: os cenários com hub ficam "não testado" (não são falhas). */
+    private fun markHubScenariosNotTested() {
+        for (id in listOf("scn_a_hub", "scn_b_hub")) {
+            if (get(id).status == Status.PENDING) set(id, Status.SKIPPED, "não testado: sem hub USB-C PD")
+        }
     }
 
     fun get(id: String): TestResult = results[id] ?: TestResult()
@@ -89,6 +98,7 @@ class RaioXModel(private val context: Context) {
         stickSeen.forEach { it.fill(false) }
         trigMid.fill(false); trigFull.fill(false); maxRate = 0f
         file.delete()
+        markHubScenariosNotTested()
     }
 
     /** Lê o estado do comando e faz as verificações automáticas. */

@@ -69,6 +69,8 @@ Cada linha fica verde (✅) sozinha quando é detetada.
 | A + hub | Telemóvel → hub USB-C PD → comando; carregador ligado ao hub | O mesmo que A, a carregar o telemóvel |
 | B + hub | Igual, com auscultadores no comando | O mesmo que B, a carregar o telemóvel |
 
+Sem hub, os dois cenários com hub aparecem no relatório como **➖ não testado**. Não contam como falha. Se um dia tiveres um hub, basta fazê-los e guardar o resultado.
+
 Para cada cenário:
 1. Escolhe A ou B. Para os testes com hub, liga o interruptor **Ligado por hub USB-C PD**. O ecrã mostra se o telemóvel está mesmo a carregar.
 2. Carrega em **Abrir cenário**.

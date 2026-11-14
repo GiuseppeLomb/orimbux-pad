@@ -39,6 +39,7 @@ fun StatusDot(status: Status, modifier: Modifier = Modifier) {
         Status.OK -> OrimbuxColors.Ok
         Status.FAIL -> OrimbuxColors.Fail
         Status.PENDING -> OrimbuxColors.Pending
+        Status.SKIPPED -> OrimbuxColors.TextDim
     }
     Box(
         modifier

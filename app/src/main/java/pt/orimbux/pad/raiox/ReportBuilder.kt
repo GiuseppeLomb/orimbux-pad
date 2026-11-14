@@ -33,6 +33,7 @@ object ReportBuilder {
         var ok = 0
         var fail = 0
         var pending = 0
+        var skipped = 0
         for (section in Section.entries) {
             sb.appendLine()
             sb.appendLine("== ${section.title.uppercase(Locale.ROOT)} ==")
@@ -42,6 +43,7 @@ object ReportBuilder {
                     Status.OK -> ok++
                     Status.FAIL -> fail++
                     Status.PENDING -> pending++
+                    Status.SKIPPED -> skipped++
                 }
                 sb.append(r.status.symbol).append(' ').append(t.label)
                 if (r.detail.isNotBlank()) sb.append(" — ").append(r.detail)
@@ -49,7 +51,7 @@ object ReportBuilder {
             }
         }
         sb.appendLine()
-        sb.appendLine("Resumo: $ok ✅ · $fail ❌ · $pending ⏳ por testar")
+        sb.appendLine("Resumo: $ok ✅ · $fail ❌ · $skipped ➖ não testados · $pending ⏳ por testar")
         return sb.toString()
     }
 
