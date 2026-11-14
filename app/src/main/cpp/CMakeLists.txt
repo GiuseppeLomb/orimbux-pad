@@ -30,6 +30,7 @@ add_library(orimbux SHARED
     controller.cpp
     trigger_effects.cpp
     audio_engine.cpp
+    usb_direct.cpp
 )
 
 target_compile_options(orimbux PRIVATE -Wall -Wextra -Wno-unused-parameter -O2)

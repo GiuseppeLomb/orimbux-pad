@@ -11,7 +11,9 @@ Sampler para atuar ao vivo (estilo Pioneer DJS), para Android, controlado 100% p
 | 2026-11-14 | **Saída de som:** o Raio-X testa e mede os cenários A, B e "com hub". A escolha final faz-se com os resultados. O Bluetooth fica fora (não cumpre os 15 ms). |
 | 2026-11-14 | **Metrónomo:** deixa de usar o altifalante do comando. Passa a ser um **pulso de vibração em cada tempo** (mais forte no tempo 1), com intensidade ajustável e opção de desligar. |
 | 2026-11-14 | **Vocais:** o script de packs aceita uma pasta extra de vocais/MC de qualquer fonte. Os sons gravados pelo microfone do comando podem ser guardados como one-shots de um pack. |
-| 2026-11-14 | **Hub USB-C com PD:** passa a ser uma forma de ligação suportada, para carregar o telemóvel durante a atuação (se o Raio-X confirmar). |
+| 2026-11-14 | **Hub USB-C com PD:** passa a ser uma forma de ligação suportada, para carregar o telemóvel durante a atuação (se o Raio-X confirmar). Não há hub para testar: os cenários com hub ficam "não testado". |
+| 2026-11-14 | **Achado do Raio-X:** no S25 Ultra (SM-S938B, Android 17, One UI), o Android **não regista a saída de áudio USB do comando**. O ALSA cria a saída (`pcmC1D0p`), mas o `UsbAlsaManager` decide `hasOutput:false` e só regista o microfone. Pelo Android, a háptica por áudio, o jack e o altifalante do comando são impossíveis. O cenário A (Oboe) fica reduzido aos altifalantes do telemóvel. |
+| 2026-11-14 | **Plano B por etapas:** primeiro uma prova mínima de áudio USB direto (transferências isócronas na interface 1, sem root), no Raio-X. Só se passar é que o comando passa a ser a saída principal; se falhar, ficam os altifalantes do telemóvel + rumble. |
 
 ---
 
@@ -35,12 +37,37 @@ Sampler para atuar ao vivo (estilo Pioneer DJS), para Android, controlado 100% p
 - Tudo offline, grátis, sem contas, sem anúncios, sem internet.
 - Ecrã na horizontal, tema escuro, ecrã sempre ligado durante a atuação.
 
-## Saída de som (a decidir com o Raio-X)
-- **Cenário A:** música nos altifalantes do telemóvel + háptica nos canais 3–4 do comando, ao mesmo tempo (2 streams, cada um com o seu `setDeviceId`).
-- **Cenário B:** música no jack 3,5 mm do comando (canais 1–2) + háptica (canais 3–4), num só stream de 4 canais.
-- **Com hub:** os cenários A e B com o comando ligado por um hub USB-C com carregamento PD.
-- O Raio-X mede a latência botão→som de cada cenário e regista o que funcionou. A app final oferece só os cenários que passarem.
+## Saída de som
+
+### Achado: o Android não deixa usar a saída de áudio do comando
+- Telemóvel: Galaxy S25 Ultra (SM-S938B), Android 17, One UI.
+- O kernel cria a placa de som do comando com saída e entrada (`pcmC1D0p` e `pcmC1D0c`).
+- O `UsbAlsaManager` do Android decide `hasInput: true hasOutput:false` e escreve "Unable to set device connection state as OUTPUT device type is none".
+- Resultado: só o microfone (USB Headset In, 2 canais, 48 kHz) aparece às apps. Nenhum stream Oboe/AudioTrack pode ser encaminhado para o jack, para o altifalante ou para os canais hápticos do comando.
+
+### Plano B — áudio USB direto (em prova)
+A app envia o áudio diretamente ao comando, sem passar pelo Android. Descritores lidos no telemóvel:
+- **Interface 1, alternativa 1:** endpoint 0x01 OUT isócrono adaptativo, 392 bytes por ms = 4 canais × 16 bits × 48 kHz (48 frames/ms + 1 de folga).
+- **Interface 2, alternativa 1:** endpoint 0x82 IN isócrono assíncrono, 196 bytes por ms = microfone 2 canais × 16 bits × 48 kHz.
+- **Interface 3:** HID (usada pelo SDL3), independente.
+
+**Etapa 1 — prova mínima** (no Raio-X). A app:
+- reclama a interface 1 (`claimInterface` com force) e envia transferências isócronas pelo usbfs, sem root;
+- toca um tom de 440 Hz nos canais 1–2 (jack) e um pulso de 80 Hz nos canais 3–4 (háptica);
+- mede a latência botão→som no jack e verifica que não há cortes nem estalidos durante 5 minutos seguidos;
+- confirma que o SDL3 HIDAPI continua a funcionar ao mesmo tempo;
+- verifica se o microfone continua pelo Android ou se tem de ser lido diretamente (interface 2).
+
+**Etapa 2 — só se a prova passar:**
+- o motor de áudio passa a ter o comando como **saída principal**: música no jack (canais 1–2) + háptica (canais 3–4), no mesmo stream;
+- os altifalantes do telemóvel ficam como alternativa nas Definições.
+
+**Se a prova falhar:** não se insiste. Ficam os altifalantes do telemóvel + rumble gerado pelos transientes do kick e pelo envelope do baixo.
+
+### Outras regras
 - O altifalante do comando não é usado.
+- Bluetooth: fora (não cumpre os 15 ms).
+- Hub USB-C PD: só se for testado. Até lá, "não testado".
 
 ## Conceito
 Sampler para atuar ao vivo, não para produzir: escolhes um pack, os loops entram e saem certos no compasso, disparas one-shots e controlas os efeitos com o comando. Sem sequenciador, sem edição, sem mistura de projetos.
