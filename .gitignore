@@ -1,0 +1,30 @@
+# Gradle / Android Studio
+.gradle/
+build/
+app/build/
+app/.cxx/
+.idea/
+*.iml
+local.properties
+captures/
+.externalNativeBuild/
+
+# Dependências descarregadas por tools/fetch-deps.ps1
+third_party/
+
+# APKs compilados (tools/build-apk.ps1)
+apk/
+
+# Packs de som: NUNCA vão para o git (licenças "sem redistribuição").
+# Ficam só na build local.
+app/src/main/assets/packs/
+packs-src/
+packs-work/
+
+# Gravações e relatórios locais
+*.wav
+raio-x-relatorio*.txt
+
+# Sistema
+.DS_Store
+Thumbs.db

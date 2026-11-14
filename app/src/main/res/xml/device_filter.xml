@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sony DualSense (054C:0CE6) e DualSense Edge (054C:0DF2), em decimal. -->
+    <usb-device vendor-id="1356" product-id="3302" />
+    <usb-device vendor-id="1356" product-id="3570" />
+</resources>
