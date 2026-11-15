@@ -212,7 +212,9 @@ class PerfController(private val ctx: Context, val settings: AppSettings) {
                 if (value == 1) {
                     if (!controllerWasConnected) showBanner("Comando ligado", 2)
                     controllerWasConnected = true
-                    if (settings.output == OutputChoice.CONTROLLER || PerfBridge.outputMode() != PerfBridge.OUT_CONTROLLER) {
+                    // Só reinicia se o som ainda não estiver no comando (ou, no modo altifalantes, para religar a háptica).
+                    val needs = if (settings.output == OutputChoice.CONTROLLER) PerfBridge.outputMode() != PerfBridge.OUT_CONTROLLER else true
+                    if (needs && outputEnabled) {
                         // Religa: volta a pôr o som no comando (pequena espera para o USB estabilizar).
                         io.execute {
                             Thread.sleep(400)

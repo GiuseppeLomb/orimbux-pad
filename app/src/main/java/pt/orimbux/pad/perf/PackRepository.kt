@@ -38,8 +38,9 @@ object PackRepository {
     private const val TAG = "OrimbuxPacks"
     val PAD_KEYS = listOf("cross", "square", "circle", "triangle", "down", "left", "right", "up")
     val PAD_SYMBOLS = listOf("✕", "□", "○", "△", "↓", "←", "→", "↑")
-    private val ONESHOT_NAMES = listOf("Kick", "Sub / 808", "Snare", "Crash / hats", "Stab de acordes", "Stab de synth", "Vocal / MC", "Riser / FX")
-    private val LOOP_NAMES = listOf("Break", "Baixo", "Percussão", "Tops", "Pads", "Lead", "Loop vocal", "Atmosfera")
+    // Nomes curtos (cabem nos pads do ecrã de atuação).
+    private val ONESHOT_NAMES = listOf("Kick", "Sub 808", "Snare", "Crash", "Acordes", "Synth", "Vocal", "Riser")
+    private val LOOP_NAMES = listOf("Break", "Baixo", "Percussão", "Tops", "Pads", "Lead", "Vocal", "Atmosfera")
 
     fun defaultLabel(pad: Int, loop: Boolean) = if (loop) LOOP_NAMES[pad] else ONESHOT_NAMES[pad]
 

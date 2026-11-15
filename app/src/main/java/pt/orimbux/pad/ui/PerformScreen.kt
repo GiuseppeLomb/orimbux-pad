@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -146,12 +147,16 @@ private fun PadTile(app: PerfController, pad: Int, blink: Float, size: Dp, modif
             .border(if (loopOn || held || pending || recording) 3.dp else 1.dp, borderColor.copy(alpha = borderAlpha), RoundedCornerShape(18.dp))
             .alpha(if (cut) 0.35f else 1f),
     ) {
-        Column(Modifier.fillMaxSize().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text(PackRepository.PAD_SYMBOLS[pad], fontSize = 26.sp, fontWeight = FontWeight.Bold, color = textColor)
-            Text(app.currentPack?.label(pad, false) ?: PackRepository.defaultLabel(pad, false), fontSize = 12.sp, color = textColor, maxLines = 1, textAlign = TextAlign.Center)
+        Column(Modifier.fillMaxSize().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text(PackRepository.PAD_SYMBOLS[pad], fontSize = 20.sp, fontWeight = FontWeight.Bold, color = textColor, lineHeight = 22.sp)
             Text(
-                (if (loopOn) "● " else "") + (app.currentPack?.label(pad, true) ?: PackRepository.defaultLabel(pad, true)),
-                fontSize = 10.sp, color = textColor.copy(alpha = if (loopOn) 1f else 0.6f), maxLines = 1, textAlign = TextAlign.Center,
+                app.currentPack?.label(pad, false) ?: PackRepository.defaultLabel(pad, false),
+                fontSize = 11.sp, color = textColor, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, lineHeight = 13.sp,
+            )
+            Text(
+                (if (loopOn) "● " else "L1: ") + (app.currentPack?.label(pad, true) ?: PackRepository.defaultLabel(pad, true)),
+                fontSize = 9.sp, color = textColor.copy(alpha = if (loopOn) 1f else 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center, lineHeight = 11.sp,
             )
         }
     }

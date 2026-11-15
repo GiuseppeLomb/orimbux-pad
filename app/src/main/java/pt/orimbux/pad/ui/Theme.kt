@@ -1,8 +1,10 @@
 package pt.orimbux.pad.ui
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 /** Cores da app: tema escuro; as cores dos pads seguem a especificação. */
@@ -43,5 +45,8 @@ private val scheme = darkColorScheme(
 
 @Composable
 fun OrimbuxTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = scheme, content = content)
+    MaterialTheme(colorScheme = scheme) {
+        // Cor por defeito dos textos (sem isto, os textos sem cor explícita saem a preto).
+        CompositionLocalProvider(LocalContentColor provides OrimbuxColors.Text, content = content)
+    }
 }
