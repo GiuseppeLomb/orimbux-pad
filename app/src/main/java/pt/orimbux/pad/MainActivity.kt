@@ -14,18 +14,14 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import pt.orimbux.pad.raiox.AudioLab
-import pt.orimbux.pad.raiox.DirectLab
-import pt.orimbux.pad.raiox.DynamicsLab
-import pt.orimbux.pad.raiox.RaioXModel
-import pt.orimbux.pad.raiox.RaioXScreen
+import pt.orimbux.pad.perf.AppSettings
+import pt.orimbux.pad.perf.PerfBridge
+import pt.orimbux.pad.perf.PerfController
+import pt.orimbux.pad.ui.AppRoot
 import pt.orimbux.pad.ui.OrimbuxTheme
 
 class MainActivity : ComponentActivity() {
-    private lateinit var model: RaioXModel
-    private lateinit var lab: AudioLab
-    private lateinit var direct: DirectLab
-    private lateinit var dyn: DynamicsLab
+    private lateinit var app: PerfController
     private var engineStarted = false
 
     // O microfone é pedido antes de o SDL abrir o comando: o diálogo USB do Android
@@ -43,14 +39,12 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        // Carrega as bibliotecas nativas e a parte Java do SDL3.
+        // Bibliotecas nativas + parte Java do SDL3 + motor de atuação.
         SdlBootstrap.init(this)
-        model = RaioXModel(applicationContext)
-        lab = AudioLab(applicationContext)
-        direct = DirectLab(applicationContext)
-        dyn = DynamicsLab()
+        PerfBridge.init(assets)
+        app = PerfController(applicationContext, AppSettings(applicationContext))
 
-        setContent { OrimbuxTheme { RaioXScreen(model, lab, direct, dyn) } }
+        setContent { OrimbuxTheme { AppRoot(app) } }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startEngine()
@@ -63,13 +57,14 @@ class MainActivity : ComponentActivity() {
         if (engineStarted) return
         engineStarted = true
         NativeBridge.controllerStart()
-        lab.refreshDevices()
+        app.start()
     }
 
     override fun onDestroy() {
         if (engineStarted) {
-            direct.stop() // devolve a interface de áudio ao Android
-            lab.closeAll()
+            app.settings.pullDynRange()
+            app.settings.save()
+            app.shutdown()                // pára a gravação, a saída de som e devolve o áudio USB
             NativeBridge.controllerStop() // repõe luzes, gatilhos e rumble
         }
         SdlBootstrap.shutdown()

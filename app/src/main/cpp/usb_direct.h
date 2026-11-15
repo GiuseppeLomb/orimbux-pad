@@ -22,6 +22,43 @@
 
 namespace orimbux {
 
+// Anel SPSC de amostras mono (háptica do modo "altifalantes do telemóvel":
+// o callback do Oboe produz, a thread do USB consome).
+class MonoRing {
+public:
+    explicit MonoRing(int n) : buf_(static_cast<size_t>(n)) {}
+    void push(float v) {
+        const size_t h = head_.load(std::memory_order_relaxed);
+        const size_t nx = (h + 1) % buf_.size();
+        if (nx == tail_.load(std::memory_order_acquire)) return;  // cheio: descarta
+        buf_[h] = v;
+        head_.store(nx, std::memory_order_release);
+    }
+    bool pop(float& v) {
+        const size_t t = tail_.load(std::memory_order_relaxed);
+        if (t == head_.load(std::memory_order_acquire)) return false;
+        v = buf_[t];
+        tail_.store((t + 1) % buf_.size(), std::memory_order_release);
+        return true;
+    }
+    size_t available() const {
+        const size_t h = head_.load(), t = tail_.load();
+        return (h + buf_.size() - t) % buf_.size();
+    }
+    void clear() { tail_.store(head_.load()); }
+
+private:
+    std::vector<float> buf_;
+    std::atomic<size_t> head_{0}, tail_{0};
+};
+
+// De onde vem o áudio que o USB envia ao comando.
+enum DirectSource : int {
+    kSourceTest = 0,        // geradores de teste do Raio-X
+    kSourceEngine = 1,      // motor de atuação: música no jack + háptica (saída principal)
+    kSourceHapticRing = 2,  // modo altifalantes: só a háptica, vinda do anel
+};
+
 struct DirectStats {
     int running = 0;
     float elapsedS = 0;
@@ -58,6 +95,12 @@ public:
     // Pad carregado (thread do comando): clique no jack + impulso háptico + medição.
     void padPressed(int64_t t0MonoNs);
 
+    void setSource(int s) { source_ = s; }
+    int source() const { return source_.load(); }
+    MonoRing& hapticRing() { return hapRing_; }
+    // Atraso extra da háptica no modo altifalantes (para alinhar com o som do telemóvel).
+    void setHapticDelayFrames(int f) { hapDelay_ = f; }
+
     DirectStats stats();
     void clearStats();
 
@@ -83,6 +126,11 @@ private:
     std::atomic<float> jackLevel_{0.25f};
     std::atomic<float> hapticLevel_{0.4f};
     std::atomic<int> burstProfile_{1};
+    std::atomic<int> source_{kSourceTest};
+    MonoRing hapRing_{48000};
+    std::atomic<int> hapDelay_{0};
+    bool hapPrimed_ = false;
+    std::vector<float> engineBuf_;
 
     std::atomic<uint32_t> triggerSeq_{0};
     std::atomic<int64_t> triggerT0_{0};

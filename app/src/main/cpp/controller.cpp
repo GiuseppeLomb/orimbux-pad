@@ -56,7 +56,10 @@ constexpr uint8_t kEn1AudioRoute = 0x80;
 // Bits de enableBits2
 constexpr uint8_t kEn2MicLight = 0x01;
 constexpr uint8_t kEn2PowerSave = 0x02;
+constexpr uint8_t kEn2Lightbar = 0x04;
 constexpr uint8_t kPowerSaveMicMute = 0x10;
+// Bits de enableBits3 (valid_flag2)
+constexpr uint8_t kEn3LedBrightness = 0x01;
 constexpr uint8_t kEn2PadLights = 0x10;
 constexpr uint8_t kEn2AudioControl2 = 0x80;
 
@@ -164,9 +167,13 @@ void Controller::setLightbar(int r, int g, int b) {
 
 void Controller::setPlayerLeds(int mask) {
     post([this, mask] {
+        // Máscara escrita diretamente (bit 0 = LED mais à esquerda … bit 4 = mais à direita;
+        // o central é o bit 2, como no hid-playstation.c), com brilho no máximo.
         DS5Effects e{};
         e.enableBits2 = kEn2PadLights;
         e.padLights = static_cast<uint8_t>((mask & 0x1F) | 0x20);  // 0x20 = mudar sem fade
+        e.enableBits3 = kEn3LedBrightness;
+        e.ledBrightness = 0;
         sendEffect(reinterpret_cast<uint8_t*>(&e), sizeof(e));
     });
 }
@@ -361,12 +368,83 @@ void Controller::resolveHits(int64_t nowNs) {
             if (nowNs - ph.createdNs < 100'000'000LL) still.push_back(ph);  // espera pelos reports seguintes
             continue;
         }
-        std::lock_guard<std::mutex> lock(hitsMutex_);
-        r.seq = ++hitSeq_;
-        hits_.push_back(r);
-        if (hits_.size() > 64) hits_.erase(hits_.begin());
+        {
+            std::lock_guard<std::mutex> lock(hitsMutex_);
+            r.seq = ++hitSeq_;
+            hits_.push_back(r);
+            if (hits_.size() > 64) hits_.erase(hits_.begin());
+        }
+        if (ControllerHandler* h = handler_.load()) h->onHitRefined(r.button, r.a0, r.a1);
     }
     pendingHits_.swap(still);
+}
+
+// Força no report do próprio toque: |acelerómetro − repouso|, repouso = média das 2 amostras anteriores.
+float Controller::strengthAt(uint64_t ts) {
+    const int n = std::min(accelCount_, kSensorHistory);
+    if (n < 2) return 0.0f;
+    int idx = -1;  // posição cronológica (0 = mais antiga) da amostra do toque
+    for (int k = n - 1; k >= 0; --k) {
+        const SensorSample& s = accelHist_[(accelCount_ - n + k) % kSensorHistory];
+        if (s.ts <= ts) {
+            idx = k;
+            break;
+        }
+    }
+    if (idx < 0) idx = n - 1;
+    const SensorSample& cur = accelHist_[(accelCount_ - n + idx) % kSensorHistory];
+    float base[3] = {0, 0, 0};
+    int nb = 0;
+    for (int k = std::max(0, idx - 2); k < idx; ++k) {
+        const SensorSample& s = accelHist_[(accelCount_ - n + k) % kSensorHistory];
+        for (int c = 0; c < 3; ++c) base[c] += s.v[c];
+        nb++;
+    }
+    if (nb == 0) return 0.0f;
+    float d2 = 0;
+    for (int c = 0; c < 3; ++c) {
+        const float d = cur.v[c] - base[c] / static_cast<float>(nb);
+        d2 += d * d;
+    }
+    return std::sqrt(d2);
+}
+
+void Controller::gyroAverage(float out[3]) {
+    out[0] = out[1] = out[2] = 0;
+    const int n = std::min({gyroCount_, kSensorHistory, 60});
+    if (n == 0) return;
+    for (int k = 0; k < n; ++k) {
+        const SensorSample& s = gyroHist_[(gyroCount_ - 1 - k) % kSensorHistory];
+        for (int c = 0; c < 3; ++c) out[c] += s.v[c];
+    }
+    for (int c = 0; c < 3; ++c) out[c] /= static_cast<float>(n);
+}
+
+void Controller::directLights(uint8_t r, uint8_t g, uint8_t b, uint8_t playerMask, uint8_t micMode) {
+    DS5Effects e{};
+    e.enableBits2 = kEn2Lightbar | kEn2PadLights | kEn2MicLight;
+    e.ledRed = r;
+    e.ledGreen = g;
+    e.ledBlue = b;
+    e.padLights = static_cast<uint8_t>((playerMask & 0x1F) | 0x20);  // máscara direta + mudar sem fade
+    e.enableBits3 = kEn3LedBrightness;
+    e.ledBrightness = 0;  // 0 = brilho máximo dos player LEDs
+    e.micLightMode = micMode;
+    if (!gamepad_) return;
+    SDL_SendGamepadEffect(gp(gamepad_), &e, sizeof(e));  // sem log: é chamado até 30×/s
+}
+
+void Controller::directTrigger(bool right, const uint8_t effect[11]) {
+    DS5Effects e{};
+    if (right) {
+        e.enableBits1 = kEn1RightTrigger;
+        std::memcpy(e.rightTrigger, effect, 11);
+    } else {
+        e.enableBits1 = kEn1LeftTrigger;
+        std::memcpy(e.leftTrigger, effect, 11);
+    }
+    if (!gamepad_) return;
+    SDL_SendGamepadEffect(gp(gamepad_), &e, sizeof(e));
 }
 
 int Controller::hits(HitResult* out, int max) {
@@ -425,12 +503,17 @@ void Controller::openFirstGamepad() {
         SDL_free(mapping);
     }
     LOGI("Botões do joystick: %d", SDL_GetNumJoystickButtons(SDL_GetGamepadJoystick(g)));
-    std::lock_guard<std::mutex> lock(stateMutex_);
-    if (bestHidapi) state_.addedCount += 1;
-    state_.hidapi = bestHidapi ? 1 : 0;
-    state_.firmware = SDL_GetGamepadFirmwareVersion(g);
-    state_.vendor = SDL_GetGamepadVendor(g);
-    state_.product = SDL_GetGamepadProduct(g);
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        if (bestHidapi) state_.addedCount += 1;
+        state_.hidapi = bestHidapi ? 1 : 0;
+        state_.firmware = SDL_GetGamepadFirmwareVersion(g);
+        state_.vendor = SDL_GetGamepadVendor(g);
+        state_.product = SDL_GetGamepadProduct(g);
+    }
+    if (bestHidapi) {
+        if (ControllerHandler* h = handler_.load()) h->onConnection(true);
+    }
 }
 
 void Controller::updateSnapshot() {
@@ -548,12 +631,26 @@ void Controller::threadMain() {
                             if (gamepadIsHidapi_) state_.removedCount += 1;
                             state_.hidapi = 0;
                         }
+                        if (gamepadIsHidapi_) {
+                            if (ControllerHandler* h = handler_.load()) h->onConnection(false);
+                        }
                         gamepadIsHidapi_ = false;
                         openFirstGamepad();  // pode haver outro caminho para o mesmo comando
                     }
                     break;
+                case SDL_EVENT_GAMEPAD_BUTTON_UP: {
+                    const int64_t nowMono = monoNs();
+                    const int64_t ageNs = static_cast<int64_t>(SDL_GetTicksNS()) - static_cast<int64_t>(ev.gbutton.timestamp);
+                    batch_.push_back(ButtonEv{ev.gbutton.button, false, ev.gbutton.timestamp, nowMono - std::max<int64_t>(ageNs, 0)});
+                    break;
+                }
                 case SDL_EVENT_GAMEPAD_BUTTON_DOWN: {
                     const int b = ev.gbutton.button;
+                    {
+                        const int64_t nowMono = monoNs();
+                        const int64_t ageNs = static_cast<int64_t>(SDL_GetTicksNS()) - static_cast<int64_t>(ev.gbutton.timestamp);
+                        batch_.push_back(ButtonEv{b, true, ev.gbutton.timestamp, nowMono - std::max<int64_t>(ageNs, 0)});
+                    }
                     const bool isPad = (b >= SDL_GAMEPAD_BUTTON_SOUTH && b <= SDL_GAMEPAD_BUTTON_NORTH) ||
                                        (b >= SDL_GAMEPAD_BUTTON_DPAD_UP && b <= SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
                     if (isPad) {
@@ -587,6 +684,17 @@ void Controller::threadMain() {
             }
         }
 
+        // Botões deste lote → app de atuação (já com a força medida no próprio report).
+        ControllerHandler* handler = handler_.load();
+        if (!batch_.empty()) {
+            if (handler) {
+                for (const ButtonEv& be : batch_) {
+                    handler->onButton(be.button, be.down, be.down ? strengthAt(be.sdlTs) : 0.0f, be.t0);
+                }
+            }
+            batch_.clear();
+        }
+
         const int64_t now = monoNs();
         if (now - sensorWindowStart_ >= 1'000'000'000LL) {
             sensorRate_ = static_cast<float>(sensorEvents_) * 1e9f / static_cast<float>(now - sensorWindowStart_);
@@ -598,6 +706,11 @@ void Controller::threadMain() {
         tickRhythmicTrigger(now);
         resolveHits(now);
         updateSnapshot();
+        if (handler) {
+            ControllerState s;
+            snapshot(s);
+            handler->onTick(now, s);
+        }
 
         // ~1 kHz: o comando envia reports a ~250 Hz; isto acrescenta no máximo 1 ms.
         std::this_thread::sleep_for(std::chrono::microseconds(1000));

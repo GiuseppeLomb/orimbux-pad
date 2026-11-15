@@ -1,0 +1,5 @@
+numpy>=1.26
+soundfile>=0.12
+librosa>=0.10
+# opcional, melhor qualidade no --stretch (precisa do programa "rubberband" instalado):
+# pyrubberband>=0.4

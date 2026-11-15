@@ -44,48 +44,71 @@ class DirectUsbAudio(ctx: Context) {
         return c.controlTransfer(0x22, 0x01, 0x0100, endpoint, data, data.size, 1000)
     }
 
-    /** Começa a enviar áudio. Devolve um texto "OK …" ou "ERRO: …". */
-    fun startOut(numUrbs: Int, packetsPerUrb: Int): String {
-        if (isRunning) return "OK · já a correr"
-        val dev = controller() ?: return "ERRO: comando não encontrado (está ligado?)"
-        if (!usb.hasPermission(dev)) return "ERRO: a app não tem permissão USB para o comando"
-        val c = connection(dev) ?: return "ERRO: openDevice falhou"
+    /**
+     * Reclama a interface de áudio 1 (force=true), escolhe a alternativa 1 e pede 48 kHz.
+     * Devolve "" (e fica pronto: ver [fd]) ou o texto do erro.
+     */
+    fun claimOut(): String {
+        if (outAlt0 != null) return ""
+        val dev = controller() ?: return "comando não encontrado (está ligado?)"
+        if (!usb.hasPermission(dev)) return "a app não tem permissão USB para o comando"
+        val c = connection(dev) ?: return "openDevice falhou"
         val alt0 = iface(dev, 1, 0)
         val alt1 = iface(dev, 1, 1)
-        if (alt0 == null || alt1 == null) return "ERRO: interface de áudio 1 não encontrada"
+        if (alt0 == null || alt1 == null) return "interface de áudio 1 não encontrada"
         if (!c.claimInterface(alt0, true)) {
             closeIfIdle()
-            return "ERRO: claimInterface(1, force=true) recusado"
+            return "claimInterface(1, force=true) recusado"
         }
         if (!c.setInterface(alt1)) {
             c.releaseInterface(alt0)
             closeIfIdle()
-            return "ERRO: setInterface(interface 1, alternativa 1) recusado"
+            return "setInterface(interface 1, alternativa 1) recusado"
         }
-        val rate = setRate(c, 0x01)
-        val err = NativeBridge.directStart(c.fileDescriptor, 0x01, numUrbs, packetsPerUrb)
+        lastRate = setRate(c, 0x01)
+        outAlt0 = alt0
+        return ""
+    }
+
+    /** Descritor de ficheiro da ligação USB (válido depois de [claimOut]). */
+    val fd: Int get() = conn?.fileDescriptor ?: -1
+    var lastRate = 0
+        private set
+
+    /** Devolve a interface ao Android (o motor nativo tem de estar parado antes). */
+    fun releaseOut() {
+        val c = conn
+        val alt0 = outAlt0
+        try {
+            if (c != null && alt0 != null) {
+                c.setInterface(alt0)      // alternativa 0 = sem streaming
+                c.releaseInterface(alt0)  // o Android volta a ligar o driver do kernel
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "releaseOut: ${e.message}")  // o cabo pode já ter saído
+        }
+        outAlt0 = null
+        closeIfIdle()
+    }
+
+    /** Raio-X: começa a enviar os sons de teste. Devolve "OK …" ou "ERRO: …". */
+    fun startOut(numUrbs: Int, packetsPerUrb: Int): String {
+        if (isRunning) return "OK · já a correr"
+        val claim = claimOut()
+        if (claim.isNotEmpty()) return "ERRO: $claim"
+        val err = NativeBridge.directStart(fd, 0x01, numUrbs, packetsPerUrb)
         if (err.isNotEmpty()) {
-            c.setInterface(alt0)
-            c.releaseInterface(alt0)
-            closeIfIdle()
+            releaseOut()
             return "ERRO: $err"
         }
-        outAlt0 = alt0
-        Log.i(tag, "Áudio direto a correr (SET_CUR 48 kHz = $rate)")
+        Log.i(tag, "Áudio direto a correr (SET_CUR 48 kHz = $lastRate)")
         return "OK · interface 1 reclamada sem root · fila de ${numUrbs * packetsPerUrb} ms · " +
-            "SET_CUR 48 kHz: ${if (rate >= 0) "aceite" else "recusado ($rate)"}"
+            "SET_CUR 48 kHz: ${if (lastRate >= 0) "aceite" else "recusado ($lastRate)"}"
     }
 
     fun stopOut() {
         NativeBridge.directStop()
-        val c = conn
-        val alt0 = outAlt0
-        if (c != null && alt0 != null) {
-            c.setInterface(alt0)      // alternativa 0 = sem streaming
-            c.releaseInterface(alt0)  // o Android volta a ligar o driver do kernel
-        }
-        outAlt0 = null
-        closeIfIdle()
+        releaseOut()
     }
 
     data class MicResult(val samples: ShortArray, val error: String)

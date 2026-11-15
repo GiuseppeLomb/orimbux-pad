@@ -81,6 +81,22 @@ struct HitResult {
 // t0MonoNs = momento (CLOCK_MONOTONIC) em que o SDL processou o report.
 using PadPressCallback = std::function<void(int64_t t0MonoNs, int button)>;
 
+struct ControllerState;
+
+// Recebe os eventos do comando na thread do SDL (a app de atuação: perf_input.cpp).
+class ControllerHandler {
+public:
+    virtual ~ControllerHandler() = default;
+    // Botão carregado/largado. strengthA0 = força da batida (acelerómetro, report do próprio toque).
+    virtual void onButton(int button, bool down, float strengthA0, int64_t t0MonoNs) = 0;
+    // O pico do abanão chegou no report seguinte (~4 ms): permite ajustar o ganho.
+    virtual void onHitRefined(int button, float a0, float a1) = 0;
+    // ~1000 vezes por segundo, com o estado completo do comando.
+    virtual void onTick(int64_t nowMonoNs, const ControllerState& state) = 0;
+    // O comando foi aberto (true) ou saiu (false).
+    virtual void onConnection(bool connected) = 0;
+};
+
 class Controller {
 public:
     static Controller& get();
@@ -105,6 +121,16 @@ public:
 
     // Força das batidas (teste de dinâmica). Copia as mais recentes para `out`; devolve quantas.
     int hits(HitResult* out, int max);
+
+    // App de atuação: recebe os eventos na thread do SDL.
+    void setHandler(ControllerHandler* h) { handler_.store(h); }
+
+    // ---- Saídas diretas: SÓ dentro dos métodos do ControllerHandler (thread do SDL) ----
+    // Luzes num só report: lightbar + máscara dos 5 player LEDs (bit 0 = esquerda) + mute LED.
+    void directLights(uint8_t r, uint8_t g, uint8_t b, uint8_t playerMask, uint8_t micMode);
+    void directTrigger(bool right, const uint8_t effect[11]);
+    // Média do giroscópio nos últimos ~250 ms (para calibrar o ponto neutro).
+    void gyroAverage(float out[3]);
     // route: 0 = jack (auscultadores L/R) · 1 = altifalante do comando (canal R)
     void setAudioRoute(int route, int volume);
     void resetOutputs();
@@ -171,6 +197,18 @@ private:
     std::mutex hitsMutex_;
     std::vector<HitResult> hits_;
     int hitSeq_ = 0;
+
+    // Eventos de botão recolhidos num lote de PollEvent (processados depois, quando
+    // já chegou a amostra do acelerómetro do mesmo report — força sem atraso).
+    struct ButtonEv {
+        int button;
+        bool down;
+        uint64_t sdlTs;
+        int64_t t0;
+    };
+    std::vector<ButtonEv> batch_;
+    float strengthAt(uint64_t ts);
+    std::atomic<ControllerHandler*> handler_{nullptr};
 };
 
 } // namespace orimbux

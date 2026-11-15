@@ -12,8 +12,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,6 +28,8 @@ import pt.orimbux.pad.ui.OrimbuxColors
 @Composable
 fun OutputsTab(model: RaioXModel) {
     var ledMask by remember { mutableIntStateOf(0) }
+    var phraseRunning by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     Row(Modifier.fillMaxSize().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(
             Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
@@ -51,11 +57,37 @@ fun OutputsTab(model: RaioXModel) {
                     SmallButton("Off") { NativeBridge.lightbar(0, 0, 0) }
                 }
                 TestRow(model, "player_leds") {
+                    // Cada botão acende SÓ esse LED (máscara escrita diretamente: bit 0 = esquerda).
                     for (i in 0 until 5) {
-                        val on = (ledMask shr i) and 1 == 1
-                        ChoiceChip("${i + 1}", on) {
-                            ledMask = ledMask xor (1 shl i)
+                        ChoiceChip("LED ${i + 1}", ledMask == (1 shl i)) {
+                            ledMask = 1 shl i
                             NativeBridge.playerLeds(ledMask)
+                        }
+                    }
+                    SmallButton("Todos") { ledMask = 0x1F; NativeBridge.playerLeds(0x1F) }
+                    SmallButton("Nenhum") { ledMask = 0; NativeBridge.playerLeds(0) }
+                }
+                TestRow(model, "player_leds_phrase") {
+                    SmallButton(if (phraseRunning) "A mostrar… (16 compassos, 2× mais rápido)" else "Mostrar a frase", enabled = !phraseRunning) {
+                        phraseRunning = true
+                        scope.launch {
+                            // Mesmo padrão da app: exteriores (1,2,4,5) enchem 1 a cada 4 compassos;
+                            // o central pisca em cada tempo (mais tempo no tempo 1). A 172 BPM, 2× mais rápido.
+                            val beatMs = (60_000.0 / 172.0 / 2.0).toLong()
+                            val outer = intArrayOf(0, 1, 3, 4)
+                            for (bar in 0 until 16) {
+                                var base = 0
+                                for (k in 0 until (bar / 4 + 1)) base = base or (1 shl outer[k])
+                                for (beat in 0 until 4) {
+                                    val on = if (beat == 0) 100L else 40L
+                                    NativeBridge.playerLeds(base or 0b00100)
+                                    delay(on)
+                                    NativeBridge.playerLeds(base)
+                                    delay(beatMs - on)
+                                }
+                            }
+                            NativeBridge.playerLeds(0)
+                            phraseRunning = false
                         }
                     }
                 }

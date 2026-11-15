@@ -22,8 +22,8 @@ android {
         // Só interessa o Galaxy S25 Ultra (Android 15+ = API 35).
         minSdk = 35
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3-raio-x"
+        versionCode = 10
+        versionName = "1.0"
 
         ndk {
             // O S25 Ultra é arm64. Compilar só esta arquitetura poupa tempo e espaço.

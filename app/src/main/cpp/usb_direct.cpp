@@ -15,6 +15,7 @@
 #include <cstring>
 
 #include "clock.h"
+#include "perf_engine.h"
 
 #define LOG_TAG "OrimbuxUsbAudio"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -90,6 +91,9 @@ std::string DirectUsbOut::start(int fd, int endpoint, int numUrbs, int packetsPe
     const int packetBytes = kFramesPerPacket * kChannels * 2;  // 384
 
     buffers_.assign(static_cast<size_t>(numUrbs_), std::vector<int16_t>(static_cast<size_t>(frames * kChannels)));
+    engineBuf_.assign(static_cast<size_t>(frames * kChannels), 0.0f);
+    hapPrimed_ = false;
+    hapRing_.clear();
     urbTriggerT0_.assign(static_cast<size_t>(numUrbs_), 0);
     urbs_.clear();
     tonePhase_ = pulsePhase_ = clickPhase_ = burstPhase_ = 0;
@@ -154,6 +158,35 @@ void DirectUsbOut::fill(int16_t* dst, int frames, int urbIndex) {
         burstPos_ = 0;
         burstPhase_ = 0;
     }
+
+    const int src = source_.load();
+    if (src == kSourceEngine) {
+        // Saída principal: o motor de atuação gera música (jack) + háptica no mesmo bloco.
+        if (static_cast<int>(engineBuf_.size()) < frames * kChannels) return;  // (alocado no start)
+        PerfEngine::get().render(engineBuf_.data(), frames);
+        for (int i = 0; i < frames * kChannels; ++i) {
+            dst[i] = static_cast<int16_t>(std::clamp(engineBuf_[static_cast<size_t>(i)], -1.0f, 1.0f) * 32767.0f);
+        }
+        frameCounter_ += frames;
+        return;
+    }
+    if (src == kSourceHapticRing) {
+        // Modo altifalantes do telemóvel: canais 1–2 em silêncio, háptica vinda do callback do Oboe.
+        if (!hapPrimed_ && static_cast<int>(hapRing_.available()) >= hapDelay_.load() + frames) hapPrimed_ = true;
+        for (int f = 0; f < frames; ++f) {
+            float h = 0.0f;
+            if (hapPrimed_ && !hapRing_.pop(h)) hapPrimed_ = false;  // esvaziou: volta a encher
+            const auto v = static_cast<int16_t>(std::clamp(h, -1.0f, 1.0f) * 32767.0f);
+            int16_t* out = dst + f * kChannels;
+            out[0] = 0;
+            out[1] = 0;
+            out[2] = v;
+            out[3] = v;
+        }
+        frameCounter_ += frames;
+        return;
+    }
+
     const float target = tone_ ? jackLevel_.load() : 0.0f;
     const float rampStep = 1.0f / 240.0f / 4.0f;  // ~5 ms até ao nível 0,25 (ligar/desligar sem estalido)
     const int64_t pulsePeriod = 48000;     // 1 s

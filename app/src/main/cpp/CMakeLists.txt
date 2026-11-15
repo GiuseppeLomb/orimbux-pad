@@ -31,6 +31,13 @@ add_library(orimbux SHARED
     trigger_effects.cpp
     audio_engine.cpp
     usb_direct.cpp
+    wav.cpp
+    pack.cpp
+    demo_pack.cpp
+    perf_engine.cpp
+    perf_input.cpp
+    perf_output.cpp
+    jni_perf.cpp
 )
 
 target_compile_options(orimbux PRIVATE -Wall -Wextra -Wno-unused-parameter -O2)

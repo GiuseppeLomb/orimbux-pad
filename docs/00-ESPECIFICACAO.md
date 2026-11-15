@@ -19,6 +19,8 @@ Sampler para atuar ao vivo (estilo Pioneer DJS), para Android, controlado 100% p
 | 2026-11-15 | **Vibração:** toda a háptica sai pelos canais 3–4, no mesmo stream do som, sincronizada ao milissegundo. A intensidade segue o volume de cada som. Por defeito, a intensidade máxima fica a 40%. O rumble HID só entra se a háptica por áudio falhar. |
 | 2026-11-15 | **Dinâmica dos pads:** os botões do DualSense são digitais. O Raio-X mede se a força da batida se consegue ler pelo acelerómetro/giroscópio. Se for fiável, o volume segue a força; se não, cada pad tem volume fixo com variação natural de ±3 dB. |
 | 2026-11-15 | **Modo gate:** o tempo que o pad fica premido pode definir a duração do one-shot. É configurável por pad. |
+| 2026-11-15 | **Raio-X final:** dinâmica ✅ (acelerómetro, report do próprio toque, 100% de acerto, d=2,0). Mute LED ✅, gatilhos ✅ (formato avançado e simples), rumble ✅, lightbar ✅, Create/Options ✅, micro pelo Android ✅, háptica dos pads a 40% ✅ (impulso transiente por defeito). Player LEDs ❌: a app passa a escrever a máscara dos 5 LEDs diretamente. |
+| 2026-11-15 | **Risco anotado:** num momento do áudio direto, os reports do comando caíram para 14 Hz. A app junta todas as luzes num só report e limita-o a 30 por segundo, só quando há mudança. A taxa de reports fica visível no ecrã de atuação. |
 
 ---
 
@@ -102,6 +104,9 @@ O BPM é o do pack (sem time-stretch na app). Todos os packs ficam entre 160 e 1
   - gera o `pack.json` e copia para `assets/packs`.
   - Tu confirmas a atribuição dos slots num ficheiro simples antes de gerar.
 - Os loops repetem sem cliques (crossfade de 5 ms no ponto de loop).
+  - O script exporta cada loop com 5 ms de "cauda" para lá do último compasso. A app faz o crossfade dessa cauda com o início, e assim o loop fica com o comprimento exato da grelha.
+- **Pack de teste sintetizado:** a app traz um pack gerado por código (172 BPM, 16 sons). Serve para a app funcionar logo, mesmo sem packs descarregados, e para testes. Os packs reais (que não vão para o git) aparecem ao lado dele.
+- **"Meus sons":** um pack só com one-shots, feito com as gravações do microfone guardadas lá (um som por pad). Não tem loops, e segue o BPM do pack anterior.
 - **Sons gravados pelo microfone do comando** (ver Create + pad): podem substituir um one-shot do pack atual ou ser guardados como one-shots de um pack — o pack "Meus sons" ou outro à escolha. Ficam guardados no telemóvel e sobrevivem a reinícios.
 
 ## Ergonomia (regra base do mapeamento)
@@ -144,7 +149,14 @@ Comportamento:
 
 - O gate só se aplica à camada de one-shots. Os loops continuam a ligar/desligar no compasso.
 
-### Dinâmica dos pads (os botões do DualSense são digitais)
+### Dinâmica dos pads — DECIDIDO: segue a força da batida
+- O Raio-X confirmou: o acelerómetro no **report do próprio toque** distingue toques fracos e fortes com 100% de acerto. Isto não acrescenta atraso nenhum.
+- O volume e a intensidade da vibração de cada one-shot seguem a força da batida, por uma **curva suave e contínua** (escala logarítmica, sem degraus).
+- **Correção nos primeiros ms:** se o pico do abanão só chegar no report seguinte (~4 ms depois), o som não espera. Ajusta-se só o ganho dos primeiros milissegundos, de forma suave.
+- **Calibração:** os limites "fraco" e "forte" ajustam-se sozinhos com o uso. Também se podem calibrar nas Definições (5 toques fracos + 5 fortes).
+- Opção nas Definições para desligar a dinâmica. Desligada, cada pad tem volume fixo com uma variação natural de ±3 dB.
+
+### Dinâmica dos pads — como foi testada
 O Raio-X tem um teste que mede a força da batida pelo pico do acelerómetro/giroscópio:
 - usa o report do próprio toque e os seguintes (~4–12 ms);
 - recolhe 10 toques fracos e 10 fortes e diz se dá para os distinguir de forma fiável.
@@ -160,7 +172,7 @@ Mesmo que a medida seja fiável, o som **nunca espera por ela**. Usa a janela qu
 - ✕ ○ □ △ → one-shots da tabela.
 - **Stick direito** → corta grupos enquanto empurras (momentâneo, volta com a mola). Corte suave (fade de 5 ms). Zona morta de 30%.
   - ↑ agudos (△ + ↑)
-  - ↓ baixo (□ + ↓ sub)
+  - ↓ baixo (□: sub e baixo)
   - ← bateria (✕ + ○)
   - → melodia (↓ ← →)
 
@@ -206,6 +218,13 @@ Análise em tempo real no motor de áudio (C++), atualizada a 60 Hz:
 - **One-shot** = flash na cor do instrumento, que desvanece em ~300 ms por cima da cor base.
 - Transições sempre suaves (interpolação no espaço de cor, sem saltos nem tremidos).
 - **Player LEDs:** frase de 16 compassos. Os 4 LEDs exteriores acendem-se um a cada 4 compassos; o LED central pisca a cada tempo (mais forte no tempo 1).
+  - **Como se escrevem:** a app escreve diretamente a máscara de bits dos 5 LEDs no output report, sem usar os padrões de "player index" do SDL.
+    - bit 0 = LED mais à esquerda … bit 4 = mais à direita; o LED central é o bit 2, como no `hid-playstation.c`;
+    - flag de controlo dos player LEDs ativa e brilho no máximo;
+    - bit 0x20 = mudar sem fade.
+  - Um LED não tem brilho próprio, por isso "mais forte no tempo 1" quer dizer que o LED central fica aceso mais tempo (~200 ms no tempo 1, ~80 ms nos outros).
+  - O Raio-X (nas Definições) testa cada LED sozinho e o padrão da frase. Se a ordem física for a inversa, há uma opção para a inverter.
+- **Como se enviam as luzes:** lightbar, player LEDs e mute LED vão juntos num só report, no máximo 30 vezes por segundo e só quando mudam. Assim não competem com a leitura do comando.
 - **Estados especiais:**
   - a gravar = ponto vermelho a pulsar por cima;
   - filtro bloqueado = respiração lenta;
