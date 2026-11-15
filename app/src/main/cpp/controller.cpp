@@ -443,21 +443,23 @@ void Controller::updateSnapshot() {
     s.sensorRateHz = sensorRate_;
     if (gamepad_) {
         SDL_Gamepad* g = gp(gamepad_);
-        // Botões lidos ao nível do joystick: no driver HIDAPI do PS5 os índices são os
-        // valores de SDL_GamepadButton, sem depender do mapeamento (que pode trocar
-        // Create/Options). Guarda-se também a leitura pelo mapeamento, para diagnóstico.
+        // Botões pelo mapeamento do SDL (bits = SDL_GamepadButton). No PS5 por HIDAPI o
+        // joystick tem só 13 botões (b0–b12, com touchpad=b11 e mute=b12) e as setas vêm
+        // num "hat", por isso NÃO se pode ler ao nível do joystick com estes índices.
+        // Para diagnóstico, regista-se no log também a leitura bruta do joystick.
         uint32_t b = 0;
-        uint32_t mapped = 0;
-        SDL_Joystick* joy = SDL_GetGamepadJoystick(g);
-        const int nButtons = std::min(SDL_GetNumJoystickButtons(joy), SDL_GAMEPAD_BUTTON_TOUCHPAD + 1);
-        for (int i = 0; i < nButtons; ++i) {
-            if (SDL_GetJoystickButton(joy, i)) b |= 1u << i;
-        }
         for (int i = 0; i <= SDL_GAMEPAD_BUTTON_TOUCHPAD; ++i) {
-            if (SDL_GetGamepadButton(g, static_cast<SDL_GamepadButton>(i))) mapped |= 1u << i;
+            if (SDL_GetGamepadButton(g, static_cast<SDL_GamepadButton>(i))) b |= 1u << i;
         }
         if (b != loggedButtons_) {
-            LOGI("Botões joystick=0x%06x · pelo mapeamento=0x%06x", b, mapped);
+            uint32_t raw = 0;
+            SDL_Joystick* joy = SDL_GetGamepadJoystick(g);
+            const int n = std::min(SDL_GetNumJoystickButtons(joy), 32);
+            for (int i = 0; i < n; ++i) {
+                if (SDL_GetJoystickButton(joy, i)) raw |= 1u << i;
+            }
+            LOGI("Botões pelo mapeamento=0x%06x · joystick bruto=0x%04x · hat=%d", b, raw,
+                 SDL_GetJoystickHat(joy, 0));
             loggedButtons_ = b;
         }
         auto axis = [g](SDL_GamepadAxis a) { return static_cast<float>(SDL_GetGamepadAxis(g, a)); };
