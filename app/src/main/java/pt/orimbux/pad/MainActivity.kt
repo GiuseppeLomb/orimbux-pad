@@ -16,6 +16,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import pt.orimbux.pad.raiox.AudioLab
 import pt.orimbux.pad.raiox.DirectLab
+import pt.orimbux.pad.raiox.DynamicsLab
 import pt.orimbux.pad.raiox.RaioXModel
 import pt.orimbux.pad.raiox.RaioXScreen
 import pt.orimbux.pad.ui.OrimbuxTheme
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var model: RaioXModel
     private lateinit var lab: AudioLab
     private lateinit var direct: DirectLab
+    private lateinit var dyn: DynamicsLab
     private var engineStarted = false
 
     // O microfone é pedido antes de o SDL abrir o comando: o diálogo USB do Android
@@ -46,8 +48,9 @@ class MainActivity : ComponentActivity() {
         model = RaioXModel(applicationContext)
         lab = AudioLab(applicationContext)
         direct = DirectLab(applicationContext)
+        dyn = DynamicsLab()
 
-        setContent { OrimbuxTheme { RaioXScreen(model, lab, direct) } }
+        setContent { OrimbuxTheme { RaioXScreen(model, lab, direct, dyn) } }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startEngine()

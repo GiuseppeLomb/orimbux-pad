@@ -100,8 +100,13 @@ fun TestRow(
                 }
             }
             if (confirm) {
-                SmallButton("✅", tint = OrimbuxColors.Ok) { model.set(id, Status.OK, r.detail) }
-                SmallButton("❌", tint = OrimbuxColors.Fail) { model.set(id, Status.FAIL, r.detail) }
+                // A resposta escolhida fica realçada (fundo verde/vermelho) para se ver que foi gravada.
+                SmallButton("✅", tint = OrimbuxColors.Ok, selected = r.status == Status.OK) {
+                    model.set(id, Status.OK, r.detail)
+                }
+                SmallButton("❌", tint = OrimbuxColors.Fail, selected = r.status == Status.FAIL) {
+                    model.set(id, Status.FAIL, r.detail)
+                }
             }
         }
         if (actions != null) {
@@ -115,8 +120,22 @@ fun TestRow(
 }
 
 @Composable
-fun SmallButton(text: String, tint: Color? = null, enabled: Boolean = true, onClick: () -> Unit) {
-    if (tint != null) {
+fun SmallButton(
+    text: String,
+    tint: Color? = null,
+    enabled: Boolean = true,
+    selected: Boolean = false,
+    onClick: () -> Unit,
+) {
+    if (tint != null && selected) {
+        Button(
+            onClick = onClick,
+            enabled = enabled,
+            colors = ButtonDefaults.buttonColors(containerColor = tint, contentColor = Color.Black),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+            modifier = Modifier.heightIn(min = 34.dp),
+        ) { Text(text, fontSize = 13.sp) }
+    } else if (tint != null) {
         OutlinedButton(
             onClick = onClick,
             enabled = enabled,

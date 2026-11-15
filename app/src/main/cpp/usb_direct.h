@@ -48,6 +48,12 @@ public:
     void setTone(bool on) { tone_ = on; }     // 440 Hz contínuo nos canais 1–2
     void setPulse(bool on) { pulse_ = on; }   // 80 Hz: 120 ms a cada segundo nos canais 3–4
     void setLevel(float jack) { jackLevel_ = jack; }
+    // Háptica: nível máximo (0–1, 0,4 por defeito) e perfil do impulso dos pads:
+    // 0 = seno de 80 Hz com fade-in de 3 ms · 1 = transiente (200 Hz sem fade-in → 80 Hz a decair)
+    void setHaptic(float level, int profile) {
+        hapticLevel_ = level;
+        burstProfile_ = profile;
+    }
 
     // Pad carregado (thread do comando): clique no jack + impulso háptico + medição.
     void padPressed(int64_t t0MonoNs);
@@ -75,6 +81,8 @@ private:
     std::atomic<bool> tone_{false};
     std::atomic<bool> pulse_{false};
     std::atomic<float> jackLevel_{0.25f};
+    std::atomic<float> hapticLevel_{0.4f};
+    std::atomic<int> burstProfile_{1};
 
     std::atomic<uint32_t> triggerSeq_{0};
     std::atomic<int64_t> triggerT0_{0};

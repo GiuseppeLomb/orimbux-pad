@@ -42,7 +42,7 @@ import pt.orimbux.pad.ui.OrimbuxColors
 /** Ecrã do Raio-X: 4 separadores (Entradas, Saídas, Áudio, Relatório). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RaioXScreen(model: RaioXModel, lab: AudioLab, direct: DirectLab) {
+fun RaioXScreen(model: RaioXModel, lab: AudioLab, direct: DirectLab, dyn: DynamicsLab) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
     // Lê o comando a cada frame (~60 Hz) e o estado do áudio ~5 vezes por segundo.
@@ -51,6 +51,7 @@ fun RaioXScreen(model: RaioXModel, lab: AudioLab, direct: DirectLab) {
         while (isActive) {
             withFrameNanos { }
             model.poll()
+            dyn.poll(model)
             if (frame++ % 12 == 0) {
                 lab.pollNow()
                 direct.poll(model, model.pad)
@@ -65,6 +66,14 @@ fun RaioXScreen(model: RaioXModel, lab: AudioLab, direct: DirectLab) {
                         "usb_audio_in", if (lab.ctrlInFound) Status.OK else Status.FAIL,
                         if (lab.ctrlInFound) lab.ctrlInInfo else "não encontrado",
                     )
+                    // Sem saída USB no Android, os testes do plano A não se podem fazer: ficam "➖", não "⏳".
+                    if (!lab.ctrlOutFound) {
+                        for (id in listOf("haptic_audio", "ctrl_jack", "ctrl_speaker", "scn_b")) {
+                            if (model.get(id).status == Status.PENDING) {
+                                model.set(id, Status.SKIPPED, "impossível pelo Android neste telemóvel → substituído pelo plano B")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -73,7 +82,7 @@ fun RaioXScreen(model: RaioXModel, lab: AudioLab, direct: DirectLab) {
     Column(Modifier.fillMaxSize().background(OrimbuxColors.Background)) {
         TopBar(model)
         PrimaryTabRow(selectedTabIndex = tab, containerColor = OrimbuxColors.Background) {
-            listOf("Entradas", "Saídas", "Áudio e latência", "Relatório").forEachIndexed { i, title ->
+            listOf("Entradas", "Saídas", "Áudio e latência", "Dinâmica", "Relatório").forEachIndexed { i, title ->
                 Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title) })
             }
         }
@@ -82,6 +91,7 @@ fun RaioXScreen(model: RaioXModel, lab: AudioLab, direct: DirectLab) {
                 0 -> InputsTab(model)
                 1 -> OutputsTab(model)
                 2 -> AudioTab(model, lab, direct)
+                3 -> DynamicsTab(model, dyn)
                 else -> ReportTab(model, lab)
             }
         }

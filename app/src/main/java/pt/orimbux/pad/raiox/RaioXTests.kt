@@ -41,6 +41,7 @@ object RaioXTests {
         TestDef("battery", Section.INPUTS, "Bateria do comando", auto = true),
         TestDef("report_rate", Section.INPUTS, "Taxa de reports (≥ 200 Hz)", auto = true),
         TestDef("reconnect", Section.INPUTS, "Religação automática (tirar e voltar a pôr o cabo)", auto = true),
+        TestDef("dyn_force", Section.INPUTS, "Dinâmica: distinguir toques fracos e fortes pelos sensores", auto = true),
 
         // ---- Saídas (confirmadas por ti) ----
         TestDef("rumble_left", Section.OUTPUTS, "Rumble esquerdo (forte)"),
@@ -48,6 +49,11 @@ object RaioXTests {
         TestDef("lightbar", Section.OUTPUTS, "Lightbar RGB"),
         TestDef("player_leds", Section.OUTPUTS, "5 player LEDs (cada um)"),
         TestDef("mute_led", Section.OUTPUTS, "Mute LED (aceso e a pulsar)"),
+        TestDef("mute_led_kernel", Section.OUTPUTS, "Mute LED, modo kernel (LED + mute do micro)"),
+        TestDef("l2_simple_res", Section.OUTPUTS, "L2: resistência, formato simples (o do SDL3)"),
+        TestDef("l2_simple_vib", Section.OUTPUTS, "L2: vibração, formato simples (o do SDL3)"),
+        TestDef("r2_simple_res", Section.OUTPUTS, "R2: resistência, formato simples (o do SDL3)"),
+        TestDef("r2_simple_vib", Section.OUTPUTS, "R2: vibração, formato simples (o do SDL3)"),
         TestDef("l2_feedback", Section.OUTPUTS, "L2: feedback (resistência)"),
         TestDef("l2_weapon", Section.OUTPUTS, "L2: weapon (clique)"),
         TestDef("l2_vibration", Section.OUTPUTS, "L2: vibração"),
@@ -70,6 +76,7 @@ object RaioXTests {
         TestDef("direct_claim", Section.AUDIO, "Plano B: reclamar a interface 1 e enviar áudio isócrono (sem root)", auto = true),
         TestDef("direct_jack", Section.AUDIO, "Plano B: tom de 440 Hz no jack (canais 1–2)"),
         TestDef("direct_haptic", Section.AUDIO, "Plano B: pulso de 80 Hz na háptica (canais 3–4)"),
+        TestDef("direct_haptic_sync", Section.AUDIO, "Háptica dos pads: impulso transiente, a 40%, ao mesmo tempo que o clique"),
         TestDef("direct_latency", Section.AUDIO, "Plano B: latência botão→som no jack", auto = true),
         TestDef("direct_stability", Section.AUDIO, "Plano B: 5 minutos seguidos sem cortes nem estalidos", auto = true),
         TestDef("direct_sdl", Section.AUDIO, "Plano B: SDL3 HIDAPI (luzes, gatilhos, sensores) a funcionar ao mesmo tempo", auto = true),

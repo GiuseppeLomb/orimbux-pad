@@ -160,6 +160,8 @@ void DirectUsbOut::fill(int16_t* dst, int frames, int urbIndex) {
     const int64_t pulseLen = 5760;         // 120 ms
     const int burstLen = 2880;             // 60 ms
     const int clickLen = 1440;             // 30 ms
+    const float hapLevel = std::clamp(hapticLevel_.load(), 0.0f, 1.0f);
+    const int profile = burstProfile_.load();
 
     for (int f = 0; f < frames; ++f) {
         float jack = 0.0f;
@@ -196,12 +198,24 @@ void DirectUsbOut::fill(int16_t* dst, int frames, int urbIndex) {
             if (++clickPos_ >= clickLen) clickPos_ = -1;
         }
         if (burstPos_ >= 0) {
-            const float env = std::min({1.0f, static_cast<float>(burstPos_) / 144.0f,
-                                        static_cast<float>(burstLen - burstPos_) / 144.0f});
-            hap += static_cast<float>(std::sin(burstPhase_)) * env;
-            burstPhase_ += kTwoPi * 80.0 / kSr;
+            if (profile == 1) {
+                // Transiente: 6 ms a 200 Hz em amplitude total (ataque em ~1 ms), depois 80 Hz a decair.
+                const double t = burstPos_ / kSr;
+                const bool attack = t < 0.006;
+                const float env = attack ? 1.0f : static_cast<float>(std::exp(-(t - 0.006) / 0.02));
+                const float tail = static_cast<float>(burstLen - burstPos_) / 48.0f;  // 1 ms de fecho
+                hap += static_cast<float>(std::sin(burstPhase_)) * env * std::min(1.0f, tail);
+                burstPhase_ += kTwoPi * (attack ? 200.0 : 80.0) / kSr;
+            } else {
+                const float env = std::min({1.0f, static_cast<float>(burstPos_) / 144.0f,
+                                            static_cast<float>(burstLen - burstPos_) / 144.0f});
+                hap += static_cast<float>(std::sin(burstPhase_)) * env;
+                burstPhase_ += kTwoPi * 80.0 / kSr;
+            }
+            if (burstPhase_ > kTwoPi) burstPhase_ -= kTwoPi;
             if (++burstPos_ >= burstLen) burstPos_ = -1;
         }
+        hap *= hapLevel;  // toda a háptica respeita o nível máximo (40% por defeito)
 
         const auto j = static_cast<int16_t>(std::clamp(jack, -1.0f, 1.0f) * 32767.0f);
         const auto h = static_cast<int16_t>(std::clamp(hap, -1.0f, 1.0f) * 32767.0f);

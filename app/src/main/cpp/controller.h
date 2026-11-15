@@ -60,6 +60,21 @@ struct ControllerState {
     int vendor = 0;
     int product = 0;
     int hidapi = 0;          // 1 = aberto pelo SDL por USB direto (luzes/gatilhos disponíveis)
+    int effectsSent = 0;     // efeitos enviados com sucesso (LEDs, gatilhos, áudio do comando)
+    int effectsFailed = 0;   // efeitos que o SDL recusou
+    std::string effectError; // último erro do SDL ao enviar um efeito
+};
+
+// Força de uma batida num pad, medida pelos sensores à volta do report do toque.
+//   a0/g0 = só o report do próprio toque (sem atraso)
+//   a1/g1 = até +1 report (~4 ms)
+//   a3/g3 = até +3 reports (~12 ms)
+// Valores = pico de |amostra − repouso| (acelerómetro em m/s², giroscópio em rad/s).
+struct HitResult {
+    int seq = 0;
+    int button = 0;
+    float a0 = 0, a1 = 0, a3 = 0;
+    float g0 = 0, g1 = 0, g3 = 0;
 };
 
 // Chamado na thread do SDL quando um botão de pad é carregado.
@@ -82,9 +97,14 @@ public:
     void rumble(int low, int high, int durationMs);
     void setLightbar(int r, int g, int b);
     void setPlayerLeds(int mask);           // bits 0..4, da esquerda para a direita
-    void setMuteLed(int mode);              // 0 apagado, 1 aceso, 2 a pulsar
+    // mode: 0 apagado, 1 aceso, 2 a pulsar · kernelStyle: também liga o mute do micro (como o kernel Linux)
+    void setMuteLed(int mode, bool kernelStyle = false);
     // mode: 0 off · 1 feedback · 2 weapon · 3 vibração · 4 rampa (L2) · 5 clique ritmado (R2)
+    //       6 resistência (formato simples 0x01) · 7 vibração (formato simples 0x06)
     void setTrigger(bool right, int mode);
+
+    // Força das batidas (teste de dinâmica). Copia as mais recentes para `out`; devolve quantas.
+    int hits(HitResult* out, int max);
     // route: 0 = jack (auscultadores L/R) · 1 = altifalante do comando (canal R)
     void setAudioRoute(int route, int volume);
     void resetOutputs();
@@ -126,6 +146,31 @@ private:
     bool rhythmicR2_ = false;
     int64_t rhythmicNext_ = 0;
     int64_t rhythmicOffAt_ = 0;
+
+    // Diagnóstico: últimos botões registados no log
+    uint32_t loggedButtons_ = 0;
+
+    // Teste de dinâmica: histórico curto dos sensores (timestamp do SDL) e batidas pendentes.
+    struct SensorSample {
+        uint64_t ts = 0;
+        float v[3] = {};
+    };
+    static constexpr int kSensorHistory = 64;
+    SensorSample accelHist_[kSensorHistory];
+    SensorSample gyroHist_[kSensorHistory];
+    int accelCount_ = 0;
+    int gyroCount_ = 0;
+    struct PendingHit {
+        uint64_t ts = 0;
+        int button = 0;
+        int64_t createdNs = 0;
+    };
+    std::vector<PendingHit> pendingHits_;
+    void pushSensor(SensorSample* hist, int& count, uint64_t ts, const float* data);
+    void resolveHits(int64_t nowNs);
+    std::mutex hitsMutex_;
+    std::vector<HitResult> hits_;
+    int hitSeq_ = 0;
 };
 
 } // namespace orimbux

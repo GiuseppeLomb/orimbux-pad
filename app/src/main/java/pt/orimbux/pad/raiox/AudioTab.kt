@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -124,6 +125,17 @@ private fun DirectProofCard(model: RaioXModel, direct: DirectLab) {
             Switch(checked = direct.pulse, onCheckedChange = { direct.setPulseOn(it) })
             Text("Pulso 80 Hz na háptica (canais 3–4), 120 ms por segundo", fontSize = 13.sp)
         }
+        Text("Intensidade máxima da háptica: ${(direct.hapticLevel * 100).toInt()}%", fontSize = 13.sp)
+        Slider(
+            value = direct.hapticLevel,
+            onValueChange = { direct.setHaptic(level = it) },
+            valueRange = 0f..1f,
+            steps = 9,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ChoiceChip("Impulso transiente (rápido)", direct.hapticProfile == 1) { direct.setHaptic(profile = 1) }
+            ChoiceChip("Impulso 80 Hz suave (o de antes)", direct.hapticProfile == 0) { direct.setHaptic(profile = 0) }
+        }
         Text(
             if (v.running) "A correr há %.0f s".format(v.elapsedS) else "Parado",
             fontSize = 13.sp, fontWeight = FontWeight.Medium,
@@ -141,6 +153,8 @@ private fun DirectProofCard(model: RaioXModel, direct: DirectLab) {
         TestRow(model, "direct_claim", confirm = false)
         TestRow(model, "direct_jack")
         TestRow(model, "direct_haptic")
+        TestRow(model, "direct_haptic_sync")
+        Hint("Compara os dois impulsos a carregar nos pads: o transiente deve sentir-se ao mesmo tempo que o clique no jack.")
         TestRow(model, "direct_latency", confirm = false)
         TestRow(model, "direct_stability")
         Hint("No teste de 5 minutos, se ouvires algum corte ou estalido, marca ❌ mesmo que os contadores digam 0.")

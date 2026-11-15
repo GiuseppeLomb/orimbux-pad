@@ -39,7 +39,7 @@ JNIEXPORT void JNICALL JNI_FN(controllerState)(JNIEnv* env, jclass, jintArray in
     jint iv[16] = {
         s.connected, static_cast<jint>(s.buttons), s.batteryPercent, s.powerState,
         s.touchDown[0], s.touchDown[1], s.addedCount, s.removedCount,
-        s.sdlReady, s.lastEffectOk, s.firmware, s.vendor, s.product, s.hidapi, 0, 0,
+        s.sdlReady, s.lastEffectOk, s.firmware, s.vendor, s.product, s.hidapi, s.effectsSent, s.effectsFailed,
     };
     jfloat fv[24] = {
         s.axes[0], s.axes[1], s.axes[2], s.axes[3], s.axes[4], s.axes[5],
@@ -54,6 +54,33 @@ JNIEXPORT void JNICALL JNI_FN(controllerState)(JNIEnv* env, jclass, jintArray in
 
 JNIEXPORT jstring JNICALL JNI_FN(controllerError)(JNIEnv* env, jclass) {
     return toJ(env, Controller::get().lastError());
+}
+
+JNIEXPORT jstring JNICALL JNI_FN(effectError)(JNIEnv* env, jclass) {
+    ControllerState s;
+    Controller::get().snapshot(s);
+    return toJ(env, s.effectError);
+}
+
+/** out[64×8]: seq, botão, a0, a1, a3, g0, g1, g3 por batida (as mais recentes). Devolve quantas. */
+JNIEXPORT jint JNICALL JNI_FN(controllerHits)(JNIEnv* env, jclass, jfloatArray out) {
+    orimbux::HitResult h[64];
+    const int max = std::min<int>(64, env->GetArrayLength(out) / 8);
+    const int n = Controller::get().hits(h, max);
+    std::vector<jfloat> v(static_cast<size_t>(n) * 8);
+    for (int i = 0; i < n; ++i) {
+        jfloat* p = v.data() + static_cast<size_t>(i) * 8;
+        p[0] = static_cast<float>(h[i].seq);
+        p[1] = static_cast<float>(h[i].button);
+        p[2] = h[i].a0; p[3] = h[i].a1; p[4] = h[i].a3;
+        p[5] = h[i].g0; p[6] = h[i].g1; p[7] = h[i].g3;
+    }
+    if (n > 0) env->SetFloatArrayRegion(out, 0, n * 8, v.data());
+    return n;
+}
+
+JNIEXPORT void JNICALL JNI_FN(muteLedKernel)(JNIEnv*, jclass, jint mode) {
+    Controller::get().setMuteLed(mode, true);
 }
 
 JNIEXPORT void JNICALL JNI_FN(rumble)(JNIEnv*, jclass, jint low, jint high, jint durationMs) {
@@ -151,6 +178,10 @@ JNIEXPORT void JNICALL JNI_FN(directSetPulse)(JNIEnv*, jclass, jboolean on) {
 }
 
 JNIEXPORT void JNICALL JNI_FN(directClearStats)(JNIEnv*, jclass) { orimbux::DirectUsbOut::get().clearStats(); }
+
+JNIEXPORT void JNICALL JNI_FN(directSetHaptic)(JNIEnv*, jclass, jfloat level, jint profile) {
+    orimbux::DirectUsbOut::get().setHaptic(level, profile);
+}
 
 /** out[14]: a correr, segundos, URBs, erros de pacote, cortes, erros de envio, maior intervalo (ms),
  *  nº latências, mín, média, máx, última (ms), último errno, fila (ms) */

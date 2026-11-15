@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -15,7 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import pt.orimbux.pad.NativeBridge
+import pt.orimbux.pad.ui.OrimbuxColors
 
 /** Separador "Saídas": rumble, luzes, LEDs e gatilhos — cada um com confirmação ✅/❌. */
 @Composable
@@ -27,6 +30,14 @@ fun OutputsTab(model: RaioXModel) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Card("Rumble e luzes") {
+                // Diagnóstico: o SDL aceitou os efeitos? (LEDs, mute LED, gatilhos, áudio do comando)
+                val pad = model.pad
+                val err = if (pad.effectsFailed > 0) " · último erro: " + NativeBridge.effectError() else ""
+                Text(
+                    "Efeitos enviados ao comando: ${pad.effectsSent} · recusados pelo SDL: ${pad.effectsFailed}$err",
+                    fontSize = 12.sp,
+                    color = if (pad.effectsFailed > 0) OrimbuxColors.Fail else OrimbuxColors.TextDim,
+                )
                 TestRow(model, "rumble_left") {
                     SmallButton("Testar 1 s") { NativeBridge.rumble(0xFFFF, 0, 1000) }
                 }
@@ -53,6 +64,11 @@ fun OutputsTab(model: RaioXModel) {
                     SmallButton("Aceso") { NativeBridge.muteLed(1) }
                     SmallButton("Pulsar") { NativeBridge.muteLed(2) }
                 }
+                TestRow(model, "mute_led_kernel") {
+                    SmallButton("Apagado") { NativeBridge.muteLedKernel(0) }
+                    SmallButton("Aceso") { NativeBridge.muteLedKernel(1) }
+                    SmallButton("Pulsar") { NativeBridge.muteLedKernel(2) }
+                }
                 Hint("Ao sair da app, o comando é reposto (luzes, gatilhos e rumble desligados).")
                 SmallButton("Repor comando agora") { ledMask = 0; NativeBridge.resetOutputs() }
             }
@@ -66,6 +82,8 @@ fun OutputsTab(model: RaioXModel) {
                 TriggerRow(model, "l2_weapon", right = false, NativeBridge.TRIGGER_WEAPON)
                 TriggerRow(model, "l2_vibration", right = false, NativeBridge.TRIGGER_VIBRATION)
                 TriggerRow(model, "l2_slope", right = false, NativeBridge.TRIGGER_SLOPE)
+                TriggerRow(model, "l2_simple_res", right = false, NativeBridge.TRIGGER_SIMPLE_RESISTANCE)
+                TriggerRow(model, "l2_simple_vib", right = false, NativeBridge.TRIGGER_SIMPLE_VIBRATION)
                 TriggerRow(model, "l2_off", right = false, NativeBridge.TRIGGER_OFF)
             }
             Card("Gatilho R2 (carrega no R2 depois de ativar)") {
@@ -73,6 +91,8 @@ fun OutputsTab(model: RaioXModel) {
                 TriggerRow(model, "r2_weapon", right = true, NativeBridge.TRIGGER_WEAPON)
                 TriggerRow(model, "r2_vibration", right = true, NativeBridge.TRIGGER_VIBRATION)
                 TriggerRow(model, "r2_rhythmic", right = true, NativeBridge.TRIGGER_RHYTHMIC)
+                TriggerRow(model, "r2_simple_res", right = true, NativeBridge.TRIGGER_SIMPLE_RESISTANCE)
+                TriggerRow(model, "r2_simple_vib", right = true, NativeBridge.TRIGGER_SIMPLE_VIBRATION)
                 TriggerRow(model, "r2_off", right = true, NativeBridge.TRIGGER_OFF)
             }
         }

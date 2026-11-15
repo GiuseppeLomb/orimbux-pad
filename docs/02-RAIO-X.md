@@ -83,6 +83,25 @@ Para cada cenário:
 - A isso somam-se 0–4 ms do USB do comando (média ~2 ms), que o telemóvel não consegue medir.
 - "estimadas sem timestamp" quer dizer que o sistema não deu timestamp. Nesse caso o valor é só uma estimativa pelo tamanho do buffer.
 
+### Prova do plano B (áudio USB direto) — no separador "Áudio e latência"
+- Liga auscultadores ao jack do comando e carrega em **Iniciar**. A fila de 8 ms é a de defeito.
+- Testa o tom de 440 Hz no jack e o pulso de 80 Hz na háptica.
+- Carrega nos pads para medir a latência. Corre o **teste de 5 minutos**.
+- **Intensidade da háptica:** 40% por defeito, ajustável no cursor.
+- **Impulso dos pads:** "transiente" (por defeito: ataque rápido, para não parecer atrasado) ou "80 Hz suave". Compara os dois e responde à linha "ao mesmo tempo que o clique".
+
+### Separador "Dinâmica" (força da batida)
+1. Segura o comando como para tocar e usa sempre o mesmo pad (por exemplo ✕).
+2. Carrega em **Gravar 10 toques FRACOS** e dá 10 toques suaves.
+3. Carrega em **Gravar 10 toques FORTES** e dá 10 toques fortes.
+4. A app mostra os valores de cada toque e diz, para o acelerómetro e para o giroscópio (a 0, +4 e +12 ms), se dá para distinguir de forma fiável. Fiável = acerta em 18 dos 20 toques.
+
+### Diagnóstico das saídas
+- No topo do separador "Saídas" aparece quantos efeitos o SDL enviou e quantos recusou (com o último erro).
+- Os gatilhos têm duas versões: a **avançada** (feedback, weapon, vibração, rampa) e a **simples** (a mesma que o programa de teste do SDL3 usa). Diz qual funciona.
+- O mute LED tem duas versões: a normal e o **modo kernel**, que também liga o mute do micro.
+- O botão ✅/❌ que escolhes fica realçado. Se não ficar, a resposta não foi gravada.
+
 ### Separador "Relatório"
 - Carrega em **Copiar** e cola o texto no chat.
 - O relatório também fica guardado no telemóvel. Para o puxar para o PC:

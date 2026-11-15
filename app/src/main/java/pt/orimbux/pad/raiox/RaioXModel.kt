@@ -1,6 +1,9 @@
 package pt.orimbux.pad.raiox
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +34,8 @@ data class PadSnapshot(
     val product: Int = 0,
     /** true = aberto pelo SDL por USB direto (HIDAPI); false = caminho do Android, sem luzes/gatilhos */
     val hidapi: Boolean = false,
+    val effectsSent: Int = 0,
+    val effectsFailed: Int = 0,
     val axes: FloatArray = FloatArray(6),
     val gyro: FloatArray = FloatArray(3),
     val accel: FloatArray = FloatArray(3),
@@ -83,10 +88,21 @@ class RaioXModel(private val context: Context) {
 
     fun get(id: String): TestResult = results[id] ?: TestResult()
 
+    private val main = Handler(Looper.getMainLooper())
+
+    /**
+     * Grava um resultado. Corre sempre na thread principal (os testes de micro e de
+     * áudio direto respondem de threads de fundo) e fica registado no logcat.
+     */
     fun set(id: String, status: Status, detail: String = "") {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            main.post { set(id, status, detail) }
+            return
+        }
         val prev = results[id]
         if (prev?.status == status && prev.detail == detail) return
         results[id] = TestResult(status, detail)
+        Log.i("OrimbuxRaioX", "resultado $id = ${status.name}${if (detail.isNotBlank()) " · $detail" else ""}")
         save()
     }
 
@@ -120,6 +136,8 @@ class RaioXModel(private val context: Context) {
             vendor = ints[11],
             product = ints[12],
             hidapi = ints[13] == 1,
+            effectsSent = ints[14],
+            effectsFailed = ints[15],
             axes = floats.copyOfRange(0, 6),
             gyro = floats.copyOfRange(6, 9),
             accel = floats.copyOfRange(9, 12),
@@ -187,11 +205,18 @@ class RaioXModel(private val context: Context) {
 
     // ---- persistência simples: id|estado|detalhe por linha ----
     private fun save() {
+        val copy = results.toMap() // cópia: nunca se itera o mapa enquanto alguém o altera
         try {
-            file.writeText(results.entries.joinToString("\n") { (id, r) ->
+            val tmp = File(file.parentFile, file.name + ".tmp")
+            tmp.writeText(copy.entries.joinToString("\n") { (id, r) ->
                 "$id|${r.status.name}|${r.detail.replace("\n", " ")}"
             })
-        } catch (_: Exception) {
+            if (!tmp.renameTo(file)) {
+                file.writeText(tmp.readText())
+                tmp.delete()
+            }
+        } catch (e: Exception) {
+            Log.w("OrimbuxRaioX", "Falhou a gravar os resultados: ${e.message}")
         }
     }
 

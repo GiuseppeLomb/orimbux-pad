@@ -27,6 +27,8 @@ object NativeBridge {
     const val TRIGGER_VIBRATION = 3
     const val TRIGGER_SLOPE = 4
     const val TRIGGER_RHYTHMIC = 5
+    const val TRIGGER_SIMPLE_RESISTANCE = 6 // formato simples 0x01 (o do teste do SDL3)
+    const val TRIGGER_SIMPLE_VIBRATION = 7  // formato simples 0x06 (o do teste do SDL3)
 
     // Caminho de áudio dentro do comando
     const val ROUTE_JACK = 0
@@ -38,6 +40,12 @@ object NativeBridge {
     /** ints[16]: ver jni_bridge.cpp · floats[24]: eixos, gyro, accel, toques, taxa de reports */
     @JvmStatic external fun controllerState(ints: IntArray, floats: FloatArray)
     @JvmStatic external fun controllerError(): String
+    /** Último erro do SDL ao enviar um efeito (LEDs, gatilhos, áudio do comando). */
+    @JvmStatic external fun effectError(): String
+    /** Força das batidas: out[64×8] = seq, botão, a0, a1, a3, g0, g1, g3. Devolve quantas. */
+    @JvmStatic external fun controllerHits(out: FloatArray): Int
+    /** Mute LED como o kernel Linux faz (também liga o mute do micro). */
+    @JvmStatic external fun muteLedKernel(mode: Int)
     @JvmStatic external fun rumble(low: Int, high: Int, durationMs: Int)
     @JvmStatic external fun lightbar(r: Int, g: Int, b: Int)
     @JvmStatic external fun playerLeds(mask: Int)
@@ -68,6 +76,8 @@ object NativeBridge {
     @JvmStatic external fun directSetTone(on: Boolean)
     @JvmStatic external fun directSetPulse(on: Boolean)
     @JvmStatic external fun directClearStats()
+    /** Háptica: nível máximo 0–1 (0,4 por defeito) · perfil 0 = 80 Hz suave, 1 = transiente */
+    @JvmStatic external fun directSetHaptic(level: Float, profile: Int)
     /** out[14]: ver jni_bridge.cpp */
     @JvmStatic external fun directStats(out: FloatArray)
     /** Grava o micro diretamente (interface 2). Devolve amostras estéreo intercaladas (vazio = erro). */

@@ -61,6 +61,18 @@ class DirectLab(private val ctx: Context) {
         private set
     var micBusy by mutableStateOf(false)
         private set
+    /** Nível máximo da háptica (0–1). 40% por defeito, como na especificação. */
+    var hapticLevel by mutableStateOf(0.4f)
+        private set
+    /** Perfil do impulso dos pads: 1 = transiente (por defeito), 0 = 80 Hz suave. */
+    var hapticProfile by mutableStateOf(1)
+        private set
+
+    fun setHaptic(level: Float = hapticLevel, profile: Int = hapticProfile) {
+        hapticLevel = level.coerceIn(0f, 1f)
+        hapticProfile = profile
+        NativeBridge.directSetHaptic(hapticLevel, hapticProfile)
+    }
 
     private var startedAtMs = 0L
     private var micAndroidChecked = false
@@ -77,6 +89,7 @@ class DirectLab(private val ctx: Context) {
         }
         NativeBridge.directSetTone(tone)
         NativeBridge.directSetPulse(pulse)
+        NativeBridge.directSetHaptic(hapticLevel, hapticProfile)
         startedAtMs = SystemClock.elapsedRealtime()
         micAndroidChecked = false
     }

@@ -14,6 +14,11 @@ Sampler para atuar ao vivo (estilo Pioneer DJS), para Android, controlado 100% p
 | 2026-11-14 | **Hub USB-C com PD:** passa a ser uma forma de ligação suportada, para carregar o telemóvel durante a atuação (se o Raio-X confirmar). Não há hub para testar: os cenários com hub ficam "não testado". |
 | 2026-11-14 | **Achado do Raio-X:** no S25 Ultra (SM-S938B, Android 17, One UI), o Android **não regista a saída de áudio USB do comando**. O ALSA cria a saída (`pcmC1D0p`), mas o `UsbAlsaManager` decide `hasOutput:false` e só regista o microfone. Pelo Android, a háptica por áudio, o jack e o altifalante do comando são impossíveis. O cenário A (Oboe) fica reduzido aos altifalantes do telemóvel. |
 | 2026-11-14 | **Plano B por etapas:** primeiro uma prova mínima de áudio USB direto (transferências isócronas na interface 1, sem root), no Raio-X. Só se passar é que o comando passa a ser a saída principal; se falhar, ficam os altifalantes do telemóvel + rumble. |
+| 2026-11-15 | **A prova do plano B passou.** Latência botão→som no jack de 6,4–9,6 ms (média 7,8 ms, com fila de 8 ms), 5 minutos sem cortes, SDL3 a 250 Hz em simultâneo. **Saída principal = comando** (música no jack + háptica nos canais 3–4, no mesmo stream isócrono). Os altifalantes do telemóvel ficam como alternativa nas Definições. |
+| 2026-11-15 | **Microfone:** pelo Android. A leitura direta da interface 2 falhou (pico −64 dBFS) e não se insiste nela. |
+| 2026-11-15 | **Vibração:** toda a háptica sai pelos canais 3–4, no mesmo stream do som, sincronizada ao milissegundo. A intensidade segue o volume de cada som. Por defeito, a intensidade máxima fica a 40%. O rumble HID só entra se a háptica por áudio falhar. |
+| 2026-11-15 | **Dinâmica dos pads:** os botões do DualSense são digitais. O Raio-X mede se a força da batida se consegue ler pelo acelerómetro/giroscópio. Se for fiável, o volume segue a força; se não, cada pad tem volume fixo com variação natural de ±3 dB. |
+| 2026-11-15 | **Modo gate:** o tempo que o pad fica premido pode definir a duração do one-shot. É configurável por pad. |
 
 ---
 
@@ -45,7 +50,19 @@ Sampler para atuar ao vivo (estilo Pioneer DJS), para Android, controlado 100% p
 - O `UsbAlsaManager` do Android decide `hasInput: true hasOutput:false` e escreve "Unable to set device connection state as OUTPUT device type is none".
 - Resultado: só o microfone (USB Headset In, 2 canais, 48 kHz) aparece às apps. Nenhum stream Oboe/AudioTrack pode ser encaminhado para o jack, para o altifalante ou para os canais hápticos do comando.
 
-### Plano B — áudio USB direto (em prova)
+### Decisão (2026-11-15): saída principal = comando, por áudio USB direto
+- **Comando (por defeito):** um só stream isócrono de 4 canais a 48 kHz, enviado diretamente para o endpoint 0x01.
+  - Canais 1–2: música no jack 3,5 mm do comando (auscultadores ou cabo para o PA).
+  - Canais 3–4: háptica, gerada pelo mesmo motor e no mesmo bloco de áudio do som que a provoca.
+- **Alternativa nas Definições:** altifalantes do telemóvel (Oboe, modo exclusivo). Nesse modo, a háptica continua pelos canais 3–4 do comando, num stream à parte.
+- **Fila isócrona:** 8 ms por defeito. 4 ms só se o Raio-X o aprovar sem cortes.
+- **Resultado da prova:**
+  - latência botão→som no jack de 6,4 a 9,6 ms (média 7,8 ms), medida até o som sair pelo USB; o atraso dentro do próprio comando não se consegue medir;
+  - 5 minutos sem cortes nem estalidos;
+  - SDL3 a 250 Hz ao mesmo tempo.
+- **Microfone:** pelo Android (USB Headset In, 2 canais, 48 kHz). Continua visível com a interface 1 reclamada. A leitura direta (interface 2) não funcionou e não se usa.
+
+### Plano B — áudio USB direto (detalhes técnicos da prova)
 A app envia o áudio diretamente ao comando, sem passar pelo Android. Descritores lidos no telemóvel:
 - **Interface 1, alternativa 1:** endpoint 0x01 OUT isócrono adaptativo, 392 bytes por ms = 4 canais × 16 bits × 48 kHz (48 frames/ms + 1 de folga).
 - **Interface 2, alternativa 1:** endpoint 0x82 IN isócrono assíncrono, 196 bytes por ms = microfone 2 canais × 16 bits × 48 kHz.
@@ -114,6 +131,29 @@ Comportamento:
 - **One-shots:** disparo imediato, sem quantização. O mesmo pad pode sobrepor-se (máximo de 4 vozes por pad; a mais antiga corta).
 - **Loops:** L1 + pad liga/desliga, quantizado ao compasso seguinte. O pad pisca no ecrã enquanto espera para entrar ou sair.
 
+### Modo de disparo por pad: gate ou one-shot
+- **Gate:** o som toca enquanto o pad está premido. Ao largar, faz um fade-out de 15 ms. Um toque rápido dá um som curto.
+- **One-shot:** o som toca até ao fim, independentemente de quanto tempo seguras.
+- Configurável por pad nas Definições.
+- **Por defeito:**
+
+  | Modo | Pads |
+  |---|---|
+  | Gate | stabs (↓ acordes, ← synth), vocais (→) e setas em geral (↑ riser/impacto incluído) |
+  | One-shot | kick (✕), snare (○), sub (□), crash (△) |
+
+- O gate só se aplica à camada de one-shots. Os loops continuam a ligar/desligar no compasso.
+
+### Dinâmica dos pads (os botões do DualSense são digitais)
+O Raio-X tem um teste que mede a força da batida pelo pico do acelerómetro/giroscópio:
+- usa o report do próprio toque e os seguintes (~4–12 ms);
+- recolhe 10 toques fracos e 10 fortes e diz se dá para os distinguir de forma fiável.
+
+Mesmo que a medida seja fiável, o som **nunca espera por ela**. Usa a janela que o teste mostrar fiável **sem atraso** (o report do próprio toque). Se só a janela de +4/+12 ms for fiável, o som arranca no nível por defeito e o ganho ajusta-se nos primeiros milissegundos.
+
+- **Se for fiável:** o volume do one-shot e a intensidade da sua vibração seguem a força da batida.
+- **Se não for fiável:** volume fixo por pad, com variação natural aleatória de ±3 dB (humanização), sem atrasar o som.
+
 ## Mapeamento completo
 
 ### Polegar direito
@@ -174,9 +214,13 @@ Análise em tempo real no motor de áudio (C++), atualizada a 60 Hz:
 - Definições: intensidade global das luzes.
 
 ## Vibração e gatilhos
-- **Háptica da música:** se o Raio-X confirmar a háptica por áudio USB, o kick + o baixo (low-pass a 150 Hz) vão para os canais hápticos 3–4, para se sentir a música nas mãos.
-  - Se não confirmar: rumble gerado pelos transientes do kick e pelo envelope do baixo.
-- **Metrónomo por vibração:** um pulso curto em cada tempo, pela mesma via da háptica (canais 3–4 ou rumble).
+- **Toda a háptica sai pelos canais 3–4 do stream isócrono**, gerada no mesmo bloco de áudio do som que a provoca. Fica sincronizada ao milissegundo; não há atraso de um caminho separado.
+- **Háptica da música:** o kick + o baixo (low-pass a 150 Hz) vão para os canais 3–4, para se sentir a música nas mãos.
+- **Háptica dos one-shots:** cada one-shot gera o seu impulso háptico. A intensidade segue o volume desse som (e a força da batida, se a dinâmica for fiável): um som mais fraco vibra menos.
+- **Ataque rápido:** o impulso começa com um transiente curto (sem fade-in lento), para não parecer atrasado em relação ao som.
+- **Intensidade máxima por defeito: 40%**, ajustável nas Definições (0–100%).
+- **Rumble HID:** só como alternativa, se a háptica por áudio falhar.
+- **Metrónomo por vibração:** um pulso curto em cada tempo, pela mesma via da háptica (canais 3–4).
   - Força crescente: tempo normal < tempo 1 do compasso < tempo 1 da frase de 16 compassos (pulso forte).
   - Intensidade ajustável e opção de desligar nas Definições (ligado por defeito, a 50%).
   - O pulso está alinhado com o som que sai (compensado pela latência medida da saída).
@@ -196,7 +240,7 @@ Análise em tempo real no motor de áudio (C++), atualizada a 60 Hz:
      - volumes dos loops/one-shots;
      - indicador de gravação;
      - estado e bateria do comando.
-3. **Definições** — modo canhoto, intensidade das luzes, intensidade da vibração, metrónomo por vibração (ligado/desligado + intensidade), sensibilidade do giroscópio e calibração do ponto neutro, calibração da latência, saída de som (os cenários que passaram no Raio-X), Raio-X.
+3. **Definições** — modo canhoto, intensidade das luzes, intensidade máxima da vibração (40% por defeito), metrónomo por vibração (ligado/desligado + intensidade), sensibilidade do giroscópio e calibração do ponto neutro, calibração da latência, saída de som (comando por defeito / altifalantes do telemóvel), modo gate/one-shot por pad, dinâmica dos pads (se o Raio-X a aprovar), Raio-X.
 
 ## Robustez
 - Se o cabo sair: a música continua, aparece um aviso e o comando religa automaticamente quando voltar.
