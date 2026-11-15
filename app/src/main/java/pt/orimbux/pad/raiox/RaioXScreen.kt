@@ -42,7 +42,7 @@ import pt.orimbux.pad.ui.OrimbuxColors
 /** Ecrã do Raio-X: 4 separadores (Entradas, Saídas, Áudio, Relatório). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RaioXScreen(model: RaioXModel, lab: AudioLab) {
+fun RaioXScreen(model: RaioXModel, lab: AudioLab, direct: DirectLab) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
     // Lê o comando a cada frame (~60 Hz) e o estado do áudio ~5 vezes por segundo.
@@ -53,6 +53,7 @@ fun RaioXScreen(model: RaioXModel, lab: AudioLab) {
             model.poll()
             if (frame++ % 12 == 0) {
                 lab.pollNow()
+                direct.poll(model, model.pad)
                 // Com o comando aberto há uns segundos, regista se o Android vê o áudio USB dele.
                 if (model.pad.hidapi && frame > 300) {
                     model.set(
@@ -80,7 +81,7 @@ fun RaioXScreen(model: RaioXModel, lab: AudioLab) {
             when (tab) {
                 0 -> InputsTab(model)
                 1 -> OutputsTab(model)
-                2 -> AudioTab(model, lab)
+                2 -> AudioTab(model, lab, direct)
                 else -> ReportTab(model, lab)
             }
         }

@@ -60,4 +60,17 @@ object NativeBridge {
     @JvmStatic external fun audioStats(path: Int, out: FloatArray)
     @JvmStatic external fun audioClearStats()
     @JvmStatic external fun audioStatus(path: Int): String
+
+    // ---- plano B: áudio USB direto (usbfs isócrono) ----
+    /** fd com a interface 1 reclamada e na alternativa 1. Devolve "" ou o texto do erro. */
+    @JvmStatic external fun directStart(fd: Int, endpoint: Int, numUrbs: Int, packetsPerUrb: Int): String
+    @JvmStatic external fun directStop()
+    @JvmStatic external fun directSetTone(on: Boolean)
+    @JvmStatic external fun directSetPulse(on: Boolean)
+    @JvmStatic external fun directClearStats()
+    /** out[14]: ver jni_bridge.cpp */
+    @JvmStatic external fun directStats(out: FloatArray)
+    /** Grava o micro diretamente (interface 2). Devolve amostras estéreo intercaladas (vazio = erro). */
+    @JvmStatic external fun directRecord(fd: Int, endpoint: Int, seconds: Int): ShortArray
+    @JvmStatic external fun directRecordError(): String
 }

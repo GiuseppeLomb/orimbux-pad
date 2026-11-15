@@ -26,6 +26,45 @@ object MicTest {
         val error: String? = null,
     )
 
+    /**
+     * Para a gravação direta (plano B): converte estéreo → mono, mede o nível e
+     * reproduz nos altifalantes do telemóvel. Devolve (pico dBFS, RMS dBFS).
+     */
+    fun measureAndPlayStereo(stereo: ShortArray, speaker: AudioDeviceInfo?): Pair<Double, Double> {
+        val n = stereo.size / 2
+        if (n == 0) return -120.0 to -120.0
+        val mono = ShortArray(n) { i -> ((stereo[2 * i].toInt() + stereo[2 * i + 1].toInt()) / 2).toShort() }
+        var peak = 0
+        var sumSq = 0.0
+        for (v0 in mono) {
+            val v = abs(v0.toInt())
+            if (v > peak) peak = v
+            sumSq += v.toDouble() * v
+        }
+        val peakDb = if (peak > 0) 20 * log10(peak / 32768.0) else -120.0
+        val rms = sqrt(sumSq / n)
+        val rmsDb = if (rms > 0) 20 * log10(rms / 32768.0) else -120.0
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(48000).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build()
+            )
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .setBufferSizeInBytes(n * 2)
+            .build()
+        speaker?.let { track.setPreferredDevice(it) }
+        track.write(mono, 0, n)
+        track.play()
+        Thread.sleep(n * 1000L / 48000 + 200)
+        track.stop()
+        track.release()
+        return peakDb to rmsDb
+    }
+
     @SuppressLint("MissingPermission") // a permissão é pedida no arranque da app
     fun recordAndPlay(input: AudioDeviceInfo?, speaker: AudioDeviceInfo?, seconds: Int = 3): Result {
         if (input == null) return Result(false, -120.0, -120.0, "—", "Microfone do comando não encontrado")

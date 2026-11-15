@@ -26,7 +26,7 @@ import pt.orimbux.pad.ui.OrimbuxColors
 
 /** Separador "Áudio": háptica, jack, altifalante, microfone e os cenários de latência A/B (com e sem hub). */
 @Composable
-fun AudioTab(model: RaioXModel, lab: AudioLab) {
+fun AudioTab(model: RaioXModel, lab: AudioLab, direct: DirectLab) {
     Row(Modifier.fillMaxSize().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(
             Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
@@ -90,8 +90,78 @@ fun AudioTab(model: RaioXModel, lab: AudioLab) {
             Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            DirectProofCard(model, direct)
             ScenarioCard(model, lab)
         }
+    }
+}
+
+/** Prova do plano B: áudio USB direto para o comando. */
+@Composable
+private fun DirectProofCard(model: RaioXModel, direct: DirectLab) {
+    val v = direct.view
+    Card("Prova do plano B — áudio USB direto (sem passar pelo Android)") {
+        Hint(
+            "A app reclama a interface de áudio 1 do comando e envia o som diretamente por USB. " +
+                "Liga auscultadores ao jack do comando antes de começar."
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            DirectBuffer.entries.forEach { b ->
+                ChoiceChip("Fila ${b.label}", direct.buffer == b) { if (!v.running) direct.buffer = b }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            SmallButton("Iniciar", enabled = !v.running) { direct.start(model) }
+            SmallButton("Parar", enabled = v.running) { direct.stop() }
+            SmallButton("Limpar contadores") { direct.clear() }
+        }
+        if (direct.message.isNotBlank()) MonoText(direct.message)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Switch(checked = direct.tone, onCheckedChange = { direct.setToneOn(it) })
+            Text("Tom 440 Hz no jack (canais 1–2)", fontSize = 13.sp)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Switch(checked = direct.pulse, onCheckedChange = { direct.setPulseOn(it) })
+            Text("Pulso 80 Hz na háptica (canais 3–4), 120 ms por segundo", fontSize = 13.sp)
+        }
+        Text(
+            if (v.running) "A correr há %.0f s".format(v.elapsedS) else "Parado",
+            fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            color = if (v.running) OrimbuxColors.Ok else OrimbuxColors.TextDim,
+        )
+        MonoText(v.healthText())
+        Text("Latência botão→som no jack: ${v.latencyText()}", fontSize = 13.sp, color = OrimbuxColors.Accent)
+        Hint("Carrega ✕ ○ □ △ ou as setas pelo menos 10 vezes: ouves um clique no jack e sentes um impulso nas mãos.")
+        SmallButton(
+            if (direct.stabilityRun) "Teste de 5 minutos a correr… %.0f / 300 s".format(v.elapsedS)
+            else "Iniciar teste de 5 minutos (tom + pulso)",
+            enabled = !direct.stabilityRun,
+        ) { direct.startStability(model) }
+
+        TestRow(model, "direct_claim", confirm = false)
+        TestRow(model, "direct_jack")
+        TestRow(model, "direct_haptic")
+        TestRow(model, "direct_latency", confirm = false)
+        TestRow(model, "direct_stability")
+        Hint("No teste de 5 minutos, se ouvires algum corte ou estalido, marca ❌ mesmo que os contadores digam 0.")
+        TestRow(model, "direct_sdl") {
+            SmallButton("Lightbar R") { NativeBridge.lightbar(255, 0, 0) }
+            SmallButton("G") { NativeBridge.lightbar(0, 255, 0) }
+            SmallButton("B") { NativeBridge.lightbar(0, 0, 255) }
+            SmallButton("R2 vibração") { NativeBridge.trigger(true, NativeBridge.TRIGGER_VIBRATION) }
+            SmallButton("L2 rampa") { NativeBridge.trigger(false, NativeBridge.TRIGGER_SLOPE) }
+            SmallButton("Gatilhos off") {
+                NativeBridge.trigger(true, NativeBridge.TRIGGER_OFF)
+                NativeBridge.trigger(false, NativeBridge.TRIGGER_OFF)
+            }
+        }
+        TestRow(model, "direct_mic_android", confirm = false)
+        TestRow(model, "direct_mic_usb", confirm = false) {
+            SmallButton(if (direct.micBusy) "A gravar…" else "Gravar 3 s direto e ouvir", enabled = !direct.micBusy) {
+                direct.recordMic(model)
+            }
+        }
+        Hint("Ao parar, o Android recupera o áudio do comando. Se o micro não voltar a aparecer, tira e volta a pôr o cabo.")
     }
 }
 

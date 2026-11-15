@@ -66,6 +66,16 @@ object RaioXTests {
         TestDef("ctrl_jack", Section.AUDIO, "Som no jack do comando (canais 1–2)"),
         TestDef("ctrl_speaker", Section.AUDIO, "Som no altifalante do comando"),
         TestDef("ctrl_mic", Section.AUDIO, "Gravação pelo microfone do comando"),
+        // ---- Plano B: áudio USB direto (prova mínima) ----
+        TestDef("direct_claim", Section.AUDIO, "Plano B: reclamar a interface 1 e enviar áudio isócrono (sem root)", auto = true),
+        TestDef("direct_jack", Section.AUDIO, "Plano B: tom de 440 Hz no jack (canais 1–2)"),
+        TestDef("direct_haptic", Section.AUDIO, "Plano B: pulso de 80 Hz na háptica (canais 3–4)"),
+        TestDef("direct_latency", Section.AUDIO, "Plano B: latência botão→som no jack", auto = true),
+        TestDef("direct_stability", Section.AUDIO, "Plano B: 5 minutos seguidos sem cortes nem estalidos", auto = true),
+        TestDef("direct_sdl", Section.AUDIO, "Plano B: SDL3 HIDAPI (luzes, gatilhos, sensores) a funcionar ao mesmo tempo", auto = true),
+        TestDef("direct_mic_android", Section.AUDIO, "Plano B: o microfone continua a funcionar pelo Android", auto = true),
+        TestDef("direct_mic_usb", Section.AUDIO, "Plano B: microfone lido diretamente (interface 2)"),
+
         TestDef("scn_a", Section.AUDIO, "Cenário A: música no telemóvel + háptica no comando"),
         TestDef("scn_b", Section.AUDIO, "Cenário B: música no jack + háptica (1 stream de 4 canais)"),
         TestDef("scn_a_hub", Section.AUDIO, "Cenário A através de hub USB-C com carregamento PD"),

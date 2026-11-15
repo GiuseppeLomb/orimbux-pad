@@ -6,6 +6,7 @@
 
 #include "audio_engine.h"
 #include "controller.h"
+#include "usb_direct.h"
 
 using orimbux::Controller;
 using orimbux::ControllerState;
@@ -23,7 +24,10 @@ extern "C" {
 
 JNIEXPORT jboolean JNICALL JNI_FN(controllerStart)(JNIEnv*, jclass) {
     // Cada pad carregado dispara o som de teste e a medição de latência.
-    Controller::get().setPadPressCallback([](int64_t t0, int) { Engine::get().padPressed(t0); });
+    Controller::get().setPadPressCallback([](int64_t t0, int) {
+        Engine::get().padPressed(t0);
+        orimbux::DirectUsbOut::get().padPressed(t0);
+    });
     return Controller::get().start() ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -124,5 +128,51 @@ JNIEXPORT void JNICALL JNI_FN(audioClearStats)(JNIEnv*, jclass) { Engine::get().
 JNIEXPORT jstring JNICALL JNI_FN(audioStatus)(JNIEnv* env, jclass, jint path) {
     return toJ(env, Engine::get().status(path));
 }
+
+// ---------------------------------------------------------------- plano B: áudio USB direto
+
+namespace {
+std::string g_lastRecordError;
+}
+
+JNIEXPORT jstring JNICALL JNI_FN(directStart)(JNIEnv* env, jclass, jint fd, jint endpoint, jint numUrbs,
+                                              jint packetsPerUrb) {
+    return toJ(env, orimbux::DirectUsbOut::get().start(fd, endpoint, numUrbs, packetsPerUrb));
+}
+
+JNIEXPORT void JNICALL JNI_FN(directStop)(JNIEnv*, jclass) { orimbux::DirectUsbOut::get().stop(); }
+
+JNIEXPORT void JNICALL JNI_FN(directSetTone)(JNIEnv*, jclass, jboolean on) {
+    orimbux::DirectUsbOut::get().setTone(on == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL JNI_FN(directSetPulse)(JNIEnv*, jclass, jboolean on) {
+    orimbux::DirectUsbOut::get().setPulse(on == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL JNI_FN(directClearStats)(JNIEnv*, jclass) { orimbux::DirectUsbOut::get().clearStats(); }
+
+/** out[14]: a correr, segundos, URBs, erros de pacote, cortes, erros de envio, maior intervalo (ms),
+ *  nº latências, mín, média, máx, última (ms), último errno, fila (ms) */
+JNIEXPORT void JNICALL JNI_FN(directStats)(JNIEnv* env, jclass, jfloatArray out) {
+    const orimbux::DirectStats s = orimbux::DirectUsbOut::get().stats();
+    jfloat v[14] = {
+        static_cast<float>(s.running), s.elapsedS, static_cast<float>(s.urbsDone),
+        static_cast<float>(s.packetErrors), static_cast<float>(s.underruns), static_cast<float>(s.submitErrors),
+        s.maxGapMs, static_cast<float>(s.latCount), s.latMin, s.latAvg, s.latMax, s.latLast,
+        static_cast<float>(s.lastErrno), s.queueMs,
+    };
+    env->SetFloatArrayRegion(out, 0, std::min<jsize>(14, env->GetArrayLength(out)), v);
+}
+
+JNIEXPORT jshortArray JNICALL JNI_FN(directRecord)(JNIEnv* env, jclass, jint fd, jint endpoint, jint seconds) {
+    g_lastRecordError.clear();
+    const std::vector<int16_t> data = orimbux::directRecord(fd, endpoint, seconds, g_lastRecordError);
+    jshortArray arr = env->NewShortArray(static_cast<jsize>(data.size()));
+    if (!data.empty()) env->SetShortArrayRegion(arr, 0, static_cast<jsize>(data.size()), data.data());
+    return arr;
+}
+
+JNIEXPORT jstring JNICALL JNI_FN(directRecordError)(JNIEnv* env, jclass) { return toJ(env, g_lastRecordError); }
 
 } // extern "C"
